@@ -210,9 +210,67 @@ the app for App Store approval.
 `read_orders, read_products, read_discounts, read_locations, read_shipping`.
 Managed Billing is a separate plane — no scope changes for the audit charge.
 
+## Slice 5 status — Functions output capture
+
+**What works in this slice**
+
+- **Verified 2026-04 Functions API surface**: the `shopifyFunctions`
+  connection EXISTS for discovery (id, title, apiType, apiVersion,
+  app.title), but Shopify exposes **no Admin API test-invocation surface**
+  in 2026-04. The only execution path is the local CLI
+  (`shopify app function run`), which a hosted app cannot reach. Per the
+  roadmap's "Technical reality check", Slice 5 falls back to live
+  observation of post-deployment orders.
+- Discovery via `app/lib/shopify/functions.ts`: paginated query with
+  per-Function category mapping (`discounts → discount`,
+  `delivery_customization → shipping`, `payment_customization → payment`,
+  `cart_transform → other`, etc.). Order matters — `shipping_discounts`
+  is a SHIPPING-family apiType in 2026-04 and is correctly classified.
+  Typed `FunctionsAccessDeniedError` so the route can surface the exact
+  remediation if scope review is needed.
+- Capture runner in `app/lib/functions/store.server.ts`: pulls the last 14
+  days of orders via the existing Slice 3 client, runs the same
+  `extractFromOrder` + signature, and persists a `FunctionOutput` row per
+  source order. Idempotent: keyed on
+  `(shopDomain, fixtureSignature, sourceOrderGid)` so re-runs never
+  duplicate. Per-row attribution is heuristic by outcome shape (discount
+  delta → discount Function; else shipping → shipping Function; else
+  payment → payment Function; else null).
+- Embedded `/app/functions` route: Discover button, Capture button (last
+  14 days), installed/removed Function lists with per-row capture counts,
+  and a capture-run history. Plus-only gate enforced on every loader and
+  action. Nav link added.
+- Additive Prisma models: `DiscoveredFunction`, `CaptureRun`,
+  `FunctionOutput` (migration `slice5_functions_capture`). Cascade delete
+  from `Shop`. Soft-delete semantics on `DiscoveredFunction` — when a
+  Function disappears from discovery we set `uninstalledAt` rather than
+  deleting the row, so historical attributions stay readable.
+- Tests: 146 total across 15 files (was 130). Functions client 9 (apiType
+  mapping including the `shipping_discounts` ordering edge case, paginated
+  cursor, access-denied handling, schema-drift defense, empty result).
+  Persistence round-trip 7 (upsert + uninstall lifecycle, attribution map,
+  per-order persistence + idempotent re-run, empty-shop graceful fallback,
+  cross-shop scoping).
+
+**Scopes (unchanged)**
+
+`read_orders, read_products, read_discounts, read_locations, read_shipping`.
+The `shopifyFunctions` query was attempted under existing read scopes; if
+production install reveals a scope rejection, the route surfaces a clear
+`FunctionsAccessDeniedError` for follow-up rather than a blank list.
+
+**Honest limitation**
+
+Without a Shopify-side test-invocation API, we cannot generate Function
+output for arbitrary "what-if" cart inputs. We only observe what *actually
+fired* in the merchant's recent production orders. Slice 6 will diff these
+observed outputs against the Slice 3 `FixtureBaseline` (Script-era) rows by
+matching `fixtureSignature`. If a fixture has a baseline but no captured
+Function output, the diff will surface that as "untested in production —
+needs a synthetic order before cutover."
+
 **What this slice deliberately does NOT include**
 
-- Functions output capture (Slice 5).
 - Diff engine (Slice 6).
 - Nightly regression cron, drift alerts (Slice 7).
 - Multi-customization expansion (Slice 8).
