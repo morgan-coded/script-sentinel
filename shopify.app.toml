@@ -34,8 +34,26 @@ api_version = "2026-04"
   topics = ["app/scopes_update"]
   uri = "/webhooks/app/scopes_update"
 
-  # GDPR mandatory compliance webhooks are wired in Slice 9 (App Store submission).
-  # Stubs intentionally not included here so we don't ship empty handlers.
+  # GDPR mandatory compliance webhooks (Slice 9). Required for App Store
+  # submission. Script Sentinel does not store customer-identifying data
+  # (Slice 3 PII contract), so customers/* handlers acknowledge and return
+  # 200; shop/redact hard-deletes the Shop row and cascades through every
+  # related model.
+
+  # Handled by: /app/routes/webhooks.customers.data_request.tsx
+  [[webhooks.subscriptions]]
+  compliance_topics = ["customers/data_request"]
+  uri = "/webhooks/customers/data_request"
+
+  # Handled by: /app/routes/webhooks.customers.redact.tsx
+  [[webhooks.subscriptions]]
+  compliance_topics = ["customers/redact"]
+  uri = "/webhooks/customers/redact"
+
+  # Handled by: /app/routes/webhooks.shop.redact.tsx
+  [[webhooks.subscriptions]]
+  compliance_topics = ["shop/redact"]
+  uri = "/webhooks/shop/redact"
 
 [build]
 include_config_on_deploy = true

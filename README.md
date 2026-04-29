@@ -367,11 +367,10 @@ locally-stored Slice 3 + Slice 5 data.
 - **Continuous regression cron** ($149/mo recurring product) — covered
   in the separate Slice 7 — Continuous Regression Suite section below;
   not part of this polish slice.
-- **App Store submission readiness** — the README mentions screenshots
-  + demo script in case you draft listing copy now, but we still need
-  the GDPR mandatory webhooks (`customers/data_request`,
-  `customers/redact`, `shop/redact`), the Built-for-Shopify Lighthouse
-  pass, and the App Store listing assets. That's roadmap Slice 9.
+- **App Store submission readiness** — covered in the Slice 9 section
+  below (GDPR webhooks now shipped, privacy policy in place, listing
+  copy finalized). Lighthouse, screenshot capture, demo recording, and
+  the actual App Store form remain live-ceremony work post-deploy.
 - **No new dependencies, no new scopes, no breaking changes.**
 
 ## Slice 7 status — Continuous Regression Suite ($149/mo)
@@ -416,11 +415,65 @@ The roadmap's actual Slice 7 — the recurring product. Lives on the
 - **Weekly fixture refresh.** Mentioned in the roadmap; tracked as a
   separate cron with the same secret pattern, not landed here.
 
-### Suggested App Store listing copy (draft, not yet submitted)
+## Slice 9 status — App Store submission + Plus Partner distribution
 
-These are seeds for when Slice 9 actually goes live. The product is not
-yet App-Store-ready (GDPR webhooks + listing review pending), so don't
-publish these as-is.
+The launch slice. Closes the remaining gaps for Built-for-Shopify
+review and gives the merchant the assets they need to find and trust
+the app.
+
+**What works in this slice**
+
+- **GDPR mandatory webhooks** at `webhooks.customers.data_request`,
+  `webhooks.customers.redact`, and `webhooks.shop.redact`. HMAC
+  verification is owned by `authenticate.webhook(request)`. Customer
+  topics acknowledge with 200 because the Slice 3 PII contract means
+  Script Sentinel never stores customer-identifying data; `shop/redact`
+  hard-deletes the Shop row and cascades through every related model.
+- **Privacy policy** at [`public/legal/privacy.html`](public/legal/privacy.html),
+  served at `/legal/privacy.html`. Documents what we process, what we
+  don't store, sub-processors, retention, and the GDPR webhook
+  behavior. Reachable from the App Store listing.
+- **shopify.app.toml** declares all three GDPR subscriptions; the
+  earlier "deferred to Slice 9" comment is replaced with the live
+  configuration.
+- **Tests**: GDPR webhook handlers covered in
+  `test/routes/webhooks.gdpr.test.ts` — `shop/redact` cascade purge verified
+  against a seeded shop with related rows; `customers/*` smoke-test
+  asserts the 200-only acknowledgement contract.
+
+**Submission checklist for the human operator**
+
+- [ ] Deploy the merged `slice-9-app-store-launch` branch to the
+      production hosting target (Fly.io / Render / etc.).
+- [ ] Verify `https://<deployed-app>/legal/privacy.html` renders.
+- [ ] Run a Built-for-Shopify Lighthouse pass against the deployed
+      `/app` route. Target: ≥75 on each category. (Live ceremony.)
+- [ ] Capture the five screenshots described in the listing copy
+      below against the deployed app on a real Plus dev store.
+- [ ] Record the 60-second demo video using the demo script below.
+- [ ] Submit the App Store form with: app name, listing copy, screen-
+      shots, demo video URL, privacy URL (`/legal/privacy.html`),
+      contact email, GDPR webhook URLs.
+- [ ] Plus Partner application: separate from App Store; submit via
+      Shopify Plus Partners portal once the app listing is published.
+
+**What this slice deliberately does NOT include**
+
+- **Lighthouse verification, screenshot capture, demo video** — all
+  require a deployed URL and a real browser; deferred to a Codex live
+  ceremony after merge.
+- **The actual App Store form submission** — only the human can sign
+  the developer agreement and click submit.
+- **Plus Partner application** — separate workflow from the App Store
+  listing; needs the published listing URL as input.
+
+### App Store listing copy (Slice 9 — final)
+
+The Slice 9 launch slice landed the GDPR webhooks and privacy policy.
+Listing copy below is the final version prepared for App Store review,
+ready for submission once the human operator captures screenshots,
+records the demo, and signs the developer agreement. Update only if
+Shopify reviewers request specific changes.
 
 - **Screenshot 1** — Dashboard with the six-step stepper showing all
   steps complete and the recent-activity panel with a "0 critical"
@@ -440,7 +493,7 @@ publish these as-is.
   (critical/warning/info) showing baseline-vs-output side-by-side.
   Headline: *"Drift detected before customers find it."*
 
-**60-second demo script (rough draft):**
+**60-second demo script (final):**
 *"This is Script Sentinel for Shopify Plus. (clicks dashboard) Six steps:
 inventory your Scripts, generate fixtures from order history,
 buy + run an audit, discover deployed Functions, capture outputs, run
