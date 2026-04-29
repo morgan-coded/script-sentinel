@@ -487,8 +487,8 @@ Shopify reviewers request specific changes.
   Headline: *"60 days of orders, deduped into representative cart
   fixtures. PII stripped at storage."*
 - **Screenshot 4** — Audit PDF first page (shop name + executive
-  summary + top risks). Headline: *"Migration Risk Audit · $199. Your
-  developer reads it; your migration de-risks itself."*
+  summary + top risks). Headline: *"Migration Risk Audit. Your developer
+  reads it; your migration de-risks itself."*
 - **Screenshot 5** — Drift alerts page with three alert cards
   (critical/warning/info) showing baseline-vs-output side-by-side.
   Headline: *"Drift detected before customers find it."*
@@ -496,9 +496,9 @@ Shopify reviewers request specific changes.
 **60-second demo script (final):**
 *"This is Script Sentinel for Shopify Plus. (clicks dashboard) Six steps:
 inventory your Scripts, generate fixtures from order history,
-buy + run an audit, discover deployed Functions, capture outputs, run
+run an audit, discover deployed Functions, capture outputs, run
 drift. (clicks Scripts) Pastes a Ruby Script — classifier sees `customer.tags.include?` and grades it B2B. (clicks Fixtures) 60 days of
-orders deduped into 47 fixtures, no PII. (clicks Audit) $199, paid via
+orders deduped into 47 fixtures, no PII. (clicks Audit) Audit purchase is handled by
 Shopify Managed Billing. (clicks Drift) Function output captured for
 12 of 47 fixtures — one critical drift on the BFCM SAVE10 code. (closes
 PDF) Done. Read-only the whole way through."*
