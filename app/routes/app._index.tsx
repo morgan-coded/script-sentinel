@@ -146,6 +146,23 @@ export default function Index() {
                     </Button>
                   </InlineStack>
                 </BlockStack>
+
+                <BlockStack gap="200">
+                  <Text as="h3" variant="headingMd">
+                    Step 4 — Drift alerts
+                  </Text>
+                  <Text as="p" variant="bodyMd">
+                    Once Functions are deployed, run the diff engine to compare
+                    captured Function outputs against your Script-era fixture
+                    baselines. Severity grading per fixture surfaces critical
+                    regressions before they reach customers.
+                  </Text>
+                  <InlineStack gap="200" blockAlign="center">
+                    <Button variant="secondary" url="/app/drift">
+                      Open drift alerts
+                    </Button>
+                  </InlineStack>
+                </BlockStack>
               </BlockStack>
             </Card>
           </Layout.Section>
@@ -188,9 +205,12 @@ export default function Index() {
                     <List.Item>Slice 2 — Script discovery (paste-based)</List.Item>
                     <List.Item>Slice 3 — Cart fixture generation</List.Item>
                     <List.Item>Slice 4 — Migration Risk Audit PDF</List.Item>
+                    <List.Item>Slice 5 — Functions output capture</List.Item>
+                    <List.Item>Slice 6 — Diff engine + drift alerts</List.Item>
                   </List>
                   <Text as="p" variant="bodySm" tone="subdued">
-                    Functions capture (Slice 5) and diff engine (Slice 6) are next.
+                    Continuous regression suite (Slice 7) and multi-customization
+                    expansion (Slice 8) are next.
                   </Text>
                 </BlockStack>
               </Card>

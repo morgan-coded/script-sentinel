@@ -12,6 +12,12 @@ import {
   scopeForPlan,
 } from "../billing/charge.server";
 import type { AuditSnapshot } from "./risk-scorer";
+import type {
+  DiffEngineResult,
+  DriftResult,
+  DriftSeverity,
+  DriftCategory,
+} from "./diff-engine";
 
 const TWELVE_MONTHS_MS = 1000 * 60 * 60 * 24 * 365;
 
@@ -164,6 +170,7 @@ function hydrate(row: DbReport): SavedReport {
       fixtures: [],
       checklist: [],
       openQuestions: [],
+      drift: null,
     };
   }
   return {
@@ -176,5 +183,225 @@ function hydrate(row: DbReport): SavedReport {
     generatedAt: row.generatedAt,
     filename: row.filename,
     snapshot,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Slice 6 — DriftRun + DriftResult persistence.
+//
+// The diff engine (`./diff-engine.ts`) is pure. This module is the only
+// place those results meet Prisma. Re-runs create a new DriftRun row; older
+// runs stay readable so the route can show drift trend over time.
+// ---------------------------------------------------------------------------
+
+export interface DriftRunSummary {
+  id: string;
+  startedAt: Date;
+  finishedAt: Date | null;
+  status: "pending" | "running" | "completed" | "failed";
+  fixturesExamined: number;
+  matchCount: number;
+  missingCount: number;
+  driftCount: number;
+  criticalCount: number;
+  warningCount: number;
+  infoCount: number;
+  errorMessage: string | null;
+}
+
+export interface StoredDriftResult extends DriftResult {
+  id: string;
+  driftRunId: string;
+  createdAt: Date;
+}
+
+export async function startDriftRun(shopDomain: string): Promise<{ id: string }> {
+  const run = await db.driftRun.create({
+    data: {
+      shopDomain,
+      status: "running",
+    },
+    select: { id: true },
+  });
+  return run;
+}
+
+/**
+ * Persist the diff engine result against an existing DriftRun. Stores one
+ * DriftResult row per emitted alert; counts are denormalised onto the parent
+ * DriftRun for fast list rendering.
+ */
+export async function recordDriftResults(
+  shopDomain: string,
+  driftRunId: string,
+  diff: DiffEngineResult,
+): Promise<void> {
+  if (diff.results.length > 0) {
+    await db.driftResult.createMany({
+      data: diff.results.map((r) => ({
+        shopDomain,
+        driftRunId,
+        fixtureSignature: r.fixtureSignature,
+        severity: r.severity,
+        categories: JSON.stringify(r.categories),
+        message: r.message,
+        recommendation: r.recommendation,
+        baselineSummary: JSON.stringify(r.baseline),
+        outputSummary: JSON.stringify(r.output),
+      })),
+    });
+  }
+  await db.driftRun.update({
+    where: { id: driftRunId },
+    data: {
+      finishedAt: new Date(),
+      status: "completed",
+      fixturesExamined: diff.stats.fixturesExamined,
+      matchCount: diff.stats.match,
+      missingCount: diff.stats.missing,
+      driftCount: diff.stats.drift,
+      criticalCount: diff.stats.critical,
+      warningCount: diff.stats.warning,
+      infoCount: diff.stats.info,
+    },
+  });
+}
+
+export async function failDriftRun(driftRunId: string, errorMessage: string): Promise<void> {
+  await db.driftRun.update({
+    where: { id: driftRunId },
+    data: {
+      status: "failed",
+      finishedAt: new Date(),
+      errorMessage,
+    },
+  });
+}
+
+export async function listDriftRuns(shopDomain: string): Promise<DriftRunSummary[]> {
+  const rows = await db.driftRun.findMany({
+    where: { shopDomain },
+    orderBy: { startedAt: "desc" },
+    take: 25,
+  });
+  return rows.map((row) => ({
+    id: row.id,
+    startedAt: row.startedAt,
+    finishedAt: row.finishedAt,
+    status: (row.status as DriftRunSummary["status"]) ?? "pending",
+    fixturesExamined: row.fixturesExamined,
+    matchCount: row.matchCount,
+    missingCount: row.missingCount,
+    driftCount: row.driftCount,
+    criticalCount: row.criticalCount,
+    warningCount: row.warningCount,
+    infoCount: row.infoCount,
+    errorMessage: row.errorMessage,
+  }));
+}
+
+export async function listDriftResultsForRun(
+  shopDomain: string,
+  driftRunId: string,
+): Promise<StoredDriftResult[]> {
+  const rows = await db.driftResult.findMany({
+    where: { shopDomain, driftRunId },
+    orderBy: [
+      { severity: "asc" }, // alphabetic; we sort properly below
+      { fixtureSignature: "asc" },
+    ],
+  });
+  // Re-sort by our severity rank rather than the alphabetic Prisma sort.
+  const order: Record<string, number> = { critical: 0, warning: 1, info: 2 };
+  return rows
+    .map(rowToStoredResult)
+    .sort((a, b) => {
+      const oa = order[a.severity] ?? 99;
+      const ob = order[b.severity] ?? 99;
+      if (oa !== ob) return oa - ob;
+      return a.fixtureSignature.localeCompare(b.fixtureSignature);
+    });
+}
+
+export async function getLatestDriftRun(
+  shopDomain: string,
+): Promise<{ run: DriftRunSummary; results: StoredDriftResult[] } | null> {
+  const runs = await listDriftRuns(shopDomain);
+  if (runs.length === 0) return null;
+  const latest = runs[0];
+  const results = await listDriftResultsForRun(shopDomain, latest.id);
+  return { run: latest, results };
+}
+
+interface DbDriftResultRow {
+  id: string;
+  shopDomain: string;
+  driftRunId: string;
+  fixtureSignature: string;
+  severity: string;
+  categories: string;
+  message: string;
+  recommendation: string;
+  baselineSummary: string;
+  outputSummary: string;
+  createdAt: Date;
+}
+
+function rowToStoredResult(row: DbDriftResultRow): StoredDriftResult {
+  let categories: DriftCategory[] = [];
+  try {
+    const parsed = JSON.parse(row.categories);
+    if (Array.isArray(parsed)) categories = parsed.filter(isCategory);
+  } catch {
+    categories = [];
+  }
+  return {
+    id: row.id,
+    driftRunId: row.driftRunId,
+    createdAt: row.createdAt,
+    fixtureSignature: row.fixtureSignature,
+    severity: (isSeverity(row.severity) ? row.severity : "info") as DriftSeverity,
+    categories,
+    message: row.message,
+    recommendation: row.recommendation,
+    baseline: parseSummary(row.baselineSummary),
+    output: parseSummary(row.outputSummary),
+  };
+}
+
+function isSeverity(s: string): s is DriftSeverity {
+  return s === "critical" || s === "warning" || s === "info";
+}
+
+function isCategory(s: unknown): s is DriftCategory {
+  return s === "discount" || s === "shipping" || s === "payment" || s === "totals";
+}
+
+function parseSummary(json: string): DriftResult["baseline"] {
+  try {
+    const parsed = JSON.parse(json);
+    if (parsed && typeof parsed === "object") {
+      return {
+        totalDiscount: Number(parsed.totalDiscount ?? 0),
+        shippingCode: parsed.shippingCode ?? null,
+        shippingAmount:
+          typeof parsed.shippingAmount === "number" ? parsed.shippingAmount : null,
+        paymentGateways: Array.isArray(parsed.paymentGateways)
+          ? parsed.paymentGateways.map(String)
+          : [],
+        cartTotal: Number(parsed.cartTotal ?? 0),
+        presentmentCurrency: String(parsed.presentmentCurrency ?? "USD"),
+      };
+    }
+  } catch {
+    // fall through
+  }
+  return {
+    totalDiscount: 0,
+    shippingCode: null,
+    shippingAmount: null,
+    paymentGateways: [],
+    cartTotal: 0,
+    presentmentCurrency: "USD",
   };
 }

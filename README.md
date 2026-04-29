@@ -269,9 +269,52 @@ matching `fixtureSignature`. If a fixture has a baseline but no captured
 Function output, the diff will surface that as "untested in production —
 needs a synthetic order before cutover."
 
+## Slice 6 status — Diff engine + drift alerts
+
+**What works in this slice**
+
+- **Pure diff engine** in `app/lib/audit/diff-engine.ts`. Joins
+  `FixtureBaseline` (Slice 3 Script-era) to `FunctionOutput` (Slice 5
+  Function-era) by `fixtureSignature`. Per-category severity rules
+  (discount, shipping, payment, totals); fixture-level grade is the
+  highest per-category severity. Deterministic — same input always yields
+  byte-identical output. Sorted critical → warning → info.
+- **Severity thresholds** (from the diff-engine module header):
+  - Discount: >$1 absolute AND >10% relative → critical; >$0.50 + >5% →
+    warning; smaller delta → info; exact → no drift.
+  - Shipping: rate disappeared in output → critical; amount delta >$1 →
+    critical; rename only → warning; new rate appeared → info; equal → no drift.
+  - Payment: gateway disappeared → critical; gateway appeared → info;
+    same set → no drift.
+  - Cart total: >5% + >$1 → warning; smaller delta → info; equal → no drift.
+- **Match and untested-in-production** counts surface in DiffStats but are
+  NOT alerts. The "missing" list (fixtures with a baseline but no
+  captured Function output) lands in the PDF as an explainer line.
+- **Additive Prisma models**: `DriftRun` + `DriftResult` (migration
+  `slice6_diff_engine`). Cascade from `Shop`. Counts denormalised onto
+  `DriftRun` for fast list rendering.
+- **`/app/drift` route**: Plus-only gate, "Run diff" button, latest run
+  with per-fixture cards (severity badge, categories, message,
+  recommendation, baseline vs output side-by-side), historical runs list.
+- **Audit integration**: the audit-generate action runs the diff before
+  saving the snapshot, so the merchant's PDF includes a Drift Alerts
+  section (between Fixtures and Migration Checklist). If the diff fails,
+  the audit still succeeds with `drift: null` and the route surfaces a
+  clear re-run path on `/app/drift`.
+- **Tests** (176 total, was 146): diff engine 23 (golden cases for every
+  severity threshold + multi-category resolution + missing-output
+  fallback + determinism), drift persistence 5 (DriftRun lifecycle, sort
+  order, latest run lookup), PDF snapshot refreshed and 2 new sections
+  asserted.
+
+**Scopes (unchanged)**
+
+`read_orders, read_products, read_discounts, read_locations, read_shipping`.
+The diff engine touches no Shopify endpoints — it operates entirely on
+locally-stored Slice 3 + Slice 5 data.
+
 **What this slice deliberately does NOT include**
 
-- Diff engine (Slice 6).
 - Nightly regression cron, drift alerts (Slice 7).
 - Multi-customization expansion (Slice 8).
 - GDPR mandatory webhooks, App Store onboarding (Slice 9). The TOML keeps these

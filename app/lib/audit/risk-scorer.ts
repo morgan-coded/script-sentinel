@@ -16,6 +16,7 @@
  */
 
 import type { ClassificationCategory } from "../classifier/script-classifier";
+import type { DriftResult } from "./diff-engine";
 
 export const RISK_GRADES = ["high", "medium", "low", "unknown"] as const;
 export type RiskGrade = (typeof RISK_GRADES)[number];
@@ -63,6 +64,23 @@ export interface ScorerInput {
   scope: "single" | "multi";
   /** ISO instant. The renderer uses this verbatim — no re-clocking. */
   generatedAt: string;
+  /**
+   * Slice 6 — optional drift summary. When present, the audit snapshot's
+   * `drift` field is populated and the PDF renders the Drift Alerts section.
+   * When omitted (e.g. legacy audit re-runs), `drift` is null.
+   */
+  drift?: {
+    generatedAt: string;
+    examined: number;
+    matched: number;
+    missing: number;
+    drift: number;
+    critical: number;
+    warning: number;
+    info: number;
+    alerts: DriftResult[];
+    missingSignatures: string[];
+  };
 }
 
 export interface ScoredScript {
@@ -126,6 +144,28 @@ export interface AuditSnapshot {
   fixtures: ScoredFixture[];
   checklist: ChecklistItem[];
   openQuestions: OpenQuestion[];
+  /**
+   * Slice 6 — drift summary. Optional so older AuditReport rows (snapshotted
+   * before drift integration) hydrate cleanly. Null means "drift wasn't run
+   * for this report"; an empty `results` array with non-zero `examined`
+   * means "drift ran and everything matched."
+   */
+  drift: AuditDriftSummary | null;
+}
+
+export interface AuditDriftSummary {
+  generatedAt: string;
+  examined: number;
+  matched: number;
+  missing: number;
+  drift: number;
+  critical: number;
+  warning: number;
+  info: number;
+  /** Top 25 alerts ranked by severity (critical → info) for the PDF. */
+  alerts: DriftResult[];
+  /** Fixture signatures with no captured Function output yet. */
+  missingSignatures: string[];
 }
 
 const HIGH_RISK_PATTERNS = [
@@ -454,5 +494,21 @@ export function buildAuditSnapshot(input: ScorerInput): AuditSnapshot {
     fixtures: scoredFixtures,
     checklist: buildChecklist(scoredScripts),
     openQuestions: buildOpenQuestions(input.scripts, input.fixtures),
+    drift: input.drift
+      ? {
+          generatedAt: input.drift.generatedAt,
+          examined: input.drift.examined,
+          matched: input.drift.matched,
+          missing: input.drift.missing,
+          drift: input.drift.drift,
+          critical: input.drift.critical,
+          warning: input.drift.warning,
+          info: input.drift.info,
+          // Cap at 25 alerts in the snapshot — the PDF can't usefully render
+          // more, and the full set lives in the DriftRun rows.
+          alerts: input.drift.alerts.slice(0, 25),
+          missingSignatures: input.drift.missingSignatures.slice(0, 50),
+        }
+      : null,
   };
 }

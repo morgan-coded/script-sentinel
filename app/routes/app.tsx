@@ -28,6 +28,7 @@ export default function App() {
         <Link to="/app/fixtures">Fixtures</Link>
         <Link to="/app/audit">Audit</Link>
         <Link to="/app/functions">Functions</Link>
+        <Link to="/app/drift">Drift</Link>
       </NavMenu>
       <Outlet />
     </AppProvider>
