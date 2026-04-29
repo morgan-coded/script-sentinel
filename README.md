@@ -116,11 +116,11 @@ No new scopes were needed because Shopify exposes no script-discovery API.
   line items, `shippingLines` is a connection, `Order.market` does NOT exist
   (we derive market from `presentmentCurrencyCode` + `shippingAddress.countryCode`).
   Cited inline in `app/lib/shopify/orders.ts`.
-- **Order history window — 60 days, not 90.** `read_orders` exposes only the
-  last 60 days; the documented `read_all_orders` scope (which would lift the
-  window to 90+ days) requires Shopify Partner approval. Slice 3 ships at 60
-  days as a graceful fallback. Lifting to 90 days is a config flip plus a
-  scope addition once Partner review approves it.
+- **Order history window — 60 days.** `read_orders` exposes only the last 60
+  days; the documented `read_all_orders` scope, which would enable a longer
+  historical window, requires Shopify Partner approval. Slice 3 ships at 60
+  days as a graceful fallback. Any expanded coverage requires Partner approval
+  plus a config and scope change.
 - Read-only paginated orders client in `app/lib/shopify/orders.ts` with
   cursor-based forward iteration, query-cost-aware backoff (sleeps when
   `extensions.cost.throttleStatus.currentlyAvailable` drops below 200), and a

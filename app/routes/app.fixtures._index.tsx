@@ -41,9 +41,9 @@ import { NON_PLUS_GATE_MESSAGE } from "../lib/shopify/plan-copy";
  * a captured baseline of the historical discount/shipping/payment outcome.
  *
  * Verified against 2026-04 docs: `read_orders` only exposes the **last 60
- * days** of orders. The README + Roadmap reference 90 days; that requires
- * `read_all_orders` which needs Shopify Partner approval. Slice 3 ships at
- * 60 days as a graceful fallback, documented in the README.
+ * days** of orders. Longer history requires `read_all_orders`, which needs
+ * Shopify Partner approval. Slice 3 ships at 60 days as a graceful fallback,
+ * documented in the README.
  */
 
 type FixtureView = {

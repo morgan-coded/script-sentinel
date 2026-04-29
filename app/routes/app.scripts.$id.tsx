@@ -298,8 +298,8 @@ export default function ScriptDetail() {
                   Audit-trail next steps
                 </Text>
                 <Text as="p" variant="bodySm" tone="subdued">
-                  Slice 3 generates cart fixtures from your last 90 days of
-                  orders. Slice 4 turns this script's classification + the
+                  Slice 3 generates cart fixtures from your standard 60-day
+                  order window. Slice 4 turns this script's classification + the
                   fixtures into a Migration Risk PDF.
                 </Text>
                 <Link to="/app">Back to dashboard</Link>
