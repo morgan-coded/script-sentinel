@@ -26,7 +26,6 @@ import {
   isAuditPlanKey,
   scopeForPlan,
   startAuditCharge,
-  type AuditPlanKey,
   type BillingApi,
 } from "../lib/billing/charge.server";
 import {
@@ -60,35 +59,6 @@ import { NON_PLUS_GATE_MESSAGE } from "../lib/shopify/plan-copy";
  */
 
 const APP_AUDIT_PATH = "/app/audit";
-
-type AuditView =
-  | { state: "non-plus"; planDisplayName: string | null }
-  | {
-      state: "paywall";
-      products: Array<{
-        key: AuditPlanKey;
-        displayName: string;
-        priceLabel: string;
-        description: string;
-      }>;
-      scriptCount: number;
-      fixtureCount: number;
-    }
-  | {
-      state: "ready";
-      activePlan: AuditPlanKey;
-      scriptCount: number;
-      fixtureCount: number;
-      reports: Array<{
-        id: string;
-        scope: "single" | "multi";
-        scriptCount: number;
-        fixtureCount: number;
-        highRiskCount: number;
-        generatedAt: string;
-        filename: string;
-      }>;
-    };
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session, billing } = await authenticate.admin(request);

@@ -33,7 +33,6 @@ import {
   persistFunctionOutputsFromOrders,
   startCaptureRun,
   upsertDiscoveredFunctions,
-  type DiscoveredFunctionRecord,
 } from "../lib/functions/store.server";
 import {
   fetchOrdersWindow,

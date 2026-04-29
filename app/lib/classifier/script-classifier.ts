@@ -234,8 +234,7 @@ export function effectiveCategory(
 }
 
 /**
- * Type guard for converting a raw DB string (Prisma stores categories as
- * String for SQLite compat) back to the union.
+ * Type guard for converting a raw DB string back to the union.
  */
 export function asCategory(raw: string | null | undefined): ClassificationCategory | null {
   if (!raw) return null;

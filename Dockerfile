@@ -6,6 +6,9 @@ EXPOSE 3000
 WORKDIR /app
 
 ENV NODE_ENV=production
+# Build-time placeholder for Prisma generation. DigitalOcean injects the real
+# managed Postgres URL at runtime.
+ENV DATABASE_URL="postgresql://postgres:postgres@localhost:5432/script_sentinel?schema=public"
 
 COPY package.json package-lock.json* ./
 

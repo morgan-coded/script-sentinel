@@ -13,9 +13,8 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
  *
  *   2. shop/redact — hard-deletes the Shop row and relies on Prisma cascade
  *      to remove every related row across the schema. We exercise this
- *      against the real test SQLite, seeding the shop with at least one row
- *      from each cascading model and asserting the post-call counts are
- *      zero.
+ *      against the real test database, seeding the shop with at least one row
+ *      from each cascading model and asserting the post-call counts are zero.
  *
  * HMAC verification is owned by `authenticate.webhook(request)` inside
  * @shopify/shopify-app-remix; we don't re-implement it in tests. The

@@ -5,14 +5,12 @@ generator client {
   provider = "prisma-client-js"
 }
 
-// Slice 1 ships with SQLite to match the Shopify Remix template default and
-// keep `npm run setup` working without a Postgres dependency. The schema is
-// intentionally Postgres-compatible: only String / Int / DateTime / Boolean,
-// no SQLite-specific defaults. Switching to Postgres later is a one-line
-// `provider = "postgresql"` change plus DATABASE_URL.
+// Production uses DigitalOcean Managed PostgreSQL. The schema intentionally
+// keeps values in portable scalar columns rather than database-specific JSON
+// types so launch migrations remain simple and reviewable.
 datasource db {
-  provider = "sqlite"
-  url      = "file:dev.sqlite"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 // ---------------------------------------------------------------------------
@@ -78,8 +76,8 @@ model Charge {
   id               String    @id @default(cuid())
   shopDomain       String
   shop             Shop      @relation(fields: [shopDomain], references: [myshopifyDomain], onDelete: Cascade)
-  // Mirrors BillingPlanKey in app/lib/billing/products.ts. Stored as String for
-  // SQLite compatibility; enforce the union at the application layer.
+  // Mirrors BillingPlanKey in app/lib/billing/products.ts. Stored as String;
+  // enforce the union at the application layer.
   planKey          String
   // "one_time" or "recurring", mirroring ChargeKind.
   kind             String
@@ -121,8 +119,8 @@ model DiscoveredScript {
   // Free-form merchant title (paste) or Shopify-supplied title (admin_api).
   title            String
   // Script Editor "type" — one of: line_item | shipping | payment | unknown.
-  // Stored as String for SQLite compat; the union is enforced at the call site
-  // (see app/lib/shopify/scripts.ts).
+  // Stored as String; the union is enforced at the call site (see
+  // app/lib/shopify/scripts.ts).
   scriptType       String                @default("unknown")
   // Raw Ruby source. Stored verbatim, treated as untrusted text on display.
   source           String
@@ -205,8 +203,8 @@ model CartFixture {
   // fixture in shop B.
   signature            String
   // JSON array of { variantId, productId, sku, quantity, unitPrice }. Stored
-  // as String for SQLite; parsed back to a typed shape at the application
-  // layer. Use the LineItemSnapshot type from app/lib/fixtures/extractor.ts.
+  // as String and parsed back to a typed shape at the application layer. Use
+  // the LineItemSnapshot type from app/lib/fixtures/extractor.ts.
   lineItems            String
   // Comma-joined sorted customer tags, or empty string if no tags / guest.
   // Limited to a normalized set of tag names (no whitespace, no email-like).
@@ -302,7 +300,7 @@ model AuditPurchase {
   shopDomain       String
   shop             Shop          @relation(fields: [shopDomain], references: [myshopifyDomain], onDelete: Cascade)
   // Mirrors the Slice 1 BillingPlanKey — "MIGRATION_RISK_AUDIT" or
-  // "MULTI_SCRIPT_AUDIT". Stored as String for SQLite compatibility.
+  // "MULTI_SCRIPT_AUDIT". Stored as String for application-layer validation.
   planKey          String
   amount           Int
   currencyCode     String        @default("USD")
@@ -327,7 +325,7 @@ model AuditPurchase {
 // ---------------------------------------------------------------------------
 // AuditReport — the frozen snapshot for a generated Migration Risk Audit.
 // We store the structured JSON snapshot rather than a binary PDF so:
-//   1. SQLite stays small (no Bytes columns of variable size)
+//   1. The database stays small (no Bytes columns of variable size)
 //   2. PDF rendering can evolve (typography, layout) without invalidating
 //      the merchant's purchased report — the data underneath is what was
 //      audited

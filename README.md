@@ -37,9 +37,8 @@ Scripts, deploys Functions, or changes checkout behavior. See
 - Uninstall webhook (`app/uninstalled`) verifies HMAC via `authenticate.webhook`,
   deletes the OAuth `Session`, marks the `Shop` row uninstalled, and cancels active
   cached `Charge` rows.
-- Prisma schema with `Session` (template-owned), `Shop`, and `Charge` tables. Stays
-  on SQLite for local dev to match the template default; field types are
-  Postgres-compatible (single-line provider switch when we deploy).
+- Prisma schema with `Session` (template-owned), `Shop`, and `Charge` tables,
+  backed by PostgreSQL for launch/production durability.
 - Vitest tests for plan detection (`app/lib/shopify/plan.server.test.ts`),
   billing config + catalog (`app/lib/billing/products.test.ts`), and the
   uninstall-webhook handler contract (`app/routes/webhooks.app.uninstalled.test.ts`).
@@ -196,7 +195,7 @@ the app for App Store approval.
 - Prisma `AuditPurchase` + `AuditReport` (additive, migration
   `slice4_audit_report`). The structured `AuditSnapshot` is the source of
   truth — PDFs are re-rendered on every download for the 12-month
-  re-download window (no fragile binary blobs in SQLite).
+  re-download window (no fragile binary blobs in the database).
 - Tests: 130 total across 13 files. Risk scorer 15 (golden-cases for each
   category + grading edge cases). PDF 5 (JSX-tree snapshot, section
   ordering, header content, XSS/HTML-escape contract, empty state). Charge
@@ -515,11 +514,14 @@ You need:
 - A Plus development store in your Partner organization (request via Partners
   → Stores → Add development store → Plus). Without one you can't install the app
   end-to-end, but you can still run all unit/static checks below.
+- PostgreSQL for local persistence checks. Production uses DigitalOcean Managed
+  PostgreSQL; CI starts a Postgres 16 service automatically.
 
 ```bash
 npm install
 npx prisma generate
-npx prisma migrate dev --name init    # creates dev.sqlite
+export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/script_sentinel_dev?schema=public"
+npx prisma migrate dev                # applies the Postgres baseline
 npm run typecheck                     # type-check the whole app
 npm test                              # vitest run
 ```

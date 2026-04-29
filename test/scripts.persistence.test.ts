@@ -13,16 +13,12 @@ import {
 /**
  * Persistence test for the Script Sentinel scripts module.
  *
- * Exercises the real Prisma schema (the `slice2_script_discovery` migration is
- * applied to `prisma/dev.sqlite` as part of `npx prisma migrate dev`), and
- * verifies the round trip from intake → classify → list → override → archive.
+ * Exercises the real Prisma schema and verifies the round trip from intake →
+ * classify → list → override → archive.
  *
- * NOTE on isolation: the Slice 1 schema hardcodes the SQLite URL to
- * `file:dev.sqlite`, so we cannot easily redirect this test at a temp DB. We
- * use a unique shop domain per run and clean up in `afterAll` to avoid
- * polluting interactive dev state. Vitest is configured with `pool: "forks"`
- * so the test file owns its own process; concurrency hazards are limited to
- * test files that also write to the DB (none today).
+ * Isolation: each persistence test uses a unique shop domain and cleans up in
+ * `afterAll`. Vitest is configured with `pool: "forks"` so the test file owns
+ * its own process.
  */
 
 const SHOP = `persistence-test-${Date.now()}.myshopify.com`;
@@ -74,8 +70,8 @@ describe("createPastedScript + listScripts roundtrip", () => {
     expect(first.isActive).toBe(true);
     expect(first.classification.autoCategory).toBe("discount");
     expect(first.classification.autoConfidence).toBeGreaterThan(0.6);
-    // autoSignals is stored as a JSON string in SQLite; the hydrate step
-    // parses it back into an array.
+    // autoSignals is stored as a JSON string; the hydrate step parses it back
+    // into an array.
     expect(Array.isArray(first.classification.autoSignals)).toBe(true);
     expect(first.classification.autoSignals.length).toBeGreaterThan(0);
     // No override yet.
