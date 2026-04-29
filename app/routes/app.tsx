@@ -29,6 +29,7 @@ export default function App() {
         <Link to="/app/audit">Audit</Link>
         <Link to="/app/functions">Functions</Link>
         <Link to="/app/drift">Drift</Link>
+        <Link to="/app/regression">Regression</Link>
       </NavMenu>
       <Outlet />
     </AppProvider>

@@ -315,12 +315,14 @@ locally-stored Slice 3 + Slice 5 data.
 
 ## Slice 7 status — Pre-launch UX polish
 
-> **Framing note.** The original ROADMAP's Slice 7 is the *Continuous
-> Regression Suite* — the $149/mo recurring product (nightly cron, drift
-> emails, subscription billing). That's still ahead. What this slice ships
-> is **pre-launch productization polish** to make Slices 1–6 feel
-> finished. The recurring-product wiring lands when we tackle the
-> roadmap's actual Slice 7.
+> **Framing note.** Two slices were both labelled "Slice 7" during the
+> build. The first is **pre-launch productization polish** of Slices 1–6
+> (this section). The second is the roadmap's actual Slice 7 — the
+> Continuous Regression Suite ($149/mo recurring product) — which has now
+> also shipped on the `slice-7-regression-suite` branch (subscription
+> gating, cron handler, drift-alert email rendering, regression
+> dashboard). See the "Slice 7 — Continuous Regression Suite" section
+> below for what landed and the deliberate scope reductions.
 
 **What works in this slice**
 
@@ -362,16 +364,57 @@ locally-stored Slice 3 + Slice 5 data.
 
 **What this slice deliberately does NOT include**
 
-- **Continuous regression cron** ($149/mo recurring product) —
-  this is the roadmap's actual Slice 7 and a substantive feature
-  (subscription billing, BullMQ/pg-boss cron, React-Email drift
-  notifications, subscription gating). Not done in this polish slice.
+- **Continuous regression cron** ($149/mo recurring product) — covered
+  in the separate Slice 7 — Continuous Regression Suite section below;
+  not part of this polish slice.
 - **App Store submission readiness** — the README mentions screenshots
   + demo script in case you draft listing copy now, but we still need
   the GDPR mandatory webhooks (`customers/data_request`,
   `customers/redact`, `shop/redact`), the Built-for-Shopify Lighthouse
   pass, and the App Store listing assets. That's roadmap Slice 9.
 - **No new dependencies, no new scopes, no breaking changes.**
+
+## Slice 7 status — Continuous Regression Suite ($149/mo)
+
+The roadmap's actual Slice 7 — the recurring product. Lives on the
+`slice-7-regression-suite` branch.
+
+**What works in this slice**
+
+- **Subscription billing** via Shopify Managed Billing for the existing
+  `REGRESSION_SUITE_DISCOUNT` ($149/mo) and `REGRESSION_SUITE_ALL`
+  ($299/mo) catalog entries. New `app/lib/billing/subscription.ts`
+  wraps `billing.request` / `billing.check` for the recurring SKUs and
+  exposes a `gateRegressionHistory` helper for free-tier history gating
+  on the dashboard.
+- **Cron handler** at `GET /api/cron/regression`, authenticated by an
+  `Authorization: Bearer ${CRON_SECRET}` header. Per-shop subscription
+  check via `unauthenticated.admin(shop)` so unsubscribed shops are
+  skipped, then re-runs the Slice 6 diff and persists a
+  `RegressionRun` + any new `DriftAlert` rows.
+- **Drift-alert email template** rendered to inline-styled HTML via
+  `renderToStaticMarkup` (no React Email dependency added). The cron
+  renders the email and logs it; actual delivery is wired by the
+  deployer's mail provider.
+- **Regression dashboard** at `/app/regression` with paywall cards for
+  the recurring SKUs, subscription-gated history (free users see only
+  the most recent run / 7-day window), manual "Run regression now"
+  trigger that's also gated behind an active subscription.
+- **Tests**: 32 new across 4 files (221 total, was 189 after polish).
+  Includes the load-bearing invariant: a critical drift that stays
+  critical across two runs does NOT re-emit a DriftAlert.
+
+**What this slice deliberately does NOT include**
+
+- **Real email delivery.** The cron renders the email and persists the
+  alert rows; wiring a sender (Resend / SES / SendGrid) is a deployer
+  choice and was kept out of this slice.
+- **Capture refresh from cron.** The diff itself runs against persisted
+  capture data and is the load-bearing recurring value; recapturing
+  Function outputs from a cron context needs offline-token admin
+  clients and was deferred.
+- **Weekly fixture refresh.** Mentioned in the roadmap; tracked as a
+  separate cron with the same secret pattern, not landed here.
 
 ### Suggested App Store listing copy (draft, not yet submitted)
 

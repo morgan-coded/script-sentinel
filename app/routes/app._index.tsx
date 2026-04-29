@@ -382,10 +382,11 @@ export default function Index() {
                     <List.Item>Slice 5 — Functions output capture</List.Item>
                     <List.Item>Slice 6 — Diff engine + drift alerts</List.Item>
                     <List.Item>Slice 7 — Pre-launch UX polish</List.Item>
+                    <List.Item>Slice 7 — Continuous Regression Suite ($149/mo)</List.Item>
                   </List>
                   <Text as="p" variant="bodySm" tone="subdued">
-                    Continuous regression cron (roadmap Slice 7 — $149/mo product)
-                    and App Store launch (Slice 9) are still ahead.
+                    App Store launch (Slice 9 — GDPR webhooks + listing assets)
+                    is still ahead.
                   </Text>
                 </BlockStack>
               </Card>

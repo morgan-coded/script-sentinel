@@ -64,6 +64,8 @@ model Shop {
   functionOutputs     FunctionOutput[]
   driftRuns           DriftRun[]
   driftResults        DriftResult[]
+  regressionRuns      RegressionRun[]
+  driftAlerts         DriftAlert[]
 }
 
 // ---------------------------------------------------------------------------
@@ -532,4 +534,83 @@ model DriftResult {
   @@index([shopDomain, severity])
   @@index([shopDomain, fixtureSignature])
   @@index([driftRunId])
+}
+
+// ---------------------------------------------------------------------------
+// RegressionRun — Slice 7: one execution of the Continuous Regression Suite
+// ($149/mo or $299/mo recurring product). Triggered nightly by an external
+// scheduler hitting /api/cron/regression, or manually from the dashboard.
+//
+// A RegressionRun wraps two existing slice operations:
+//   1. Slice 5 capture (re-pull recent orders → FunctionOutput rows)
+//   2. Slice 6 diff (re-run the diff engine → new DriftRun + DriftResult rows)
+// Plus the Slice 7 step: detect NEW alerts (severity escalations) by
+// comparing the new DriftRun severity to the previous one per fixture, and
+// emit one DriftAlert row per regression so the dashboard can show trend.
+//
+// Persisted so the dashboard can render trend without re-computing, and so
+// gated free-tier views can still see the most recent snapshot.
+// ---------------------------------------------------------------------------
+model RegressionRun {
+  id              String       @id @default(cuid())
+  shopDomain      String
+  shop            Shop         @relation(fields: [shopDomain], references: [myshopifyDomain], onDelete: Cascade)
+  // "cron" or "manual" — distinguishes scheduled runs from on-demand
+  // dashboard clicks for support diagnosis.
+  trigger         String       @default("cron")
+  // Optional pointer to the DriftRun this regression spawned. Null until
+  // the diff phase succeeds.
+  driftRunId      String?
+  startedAt       DateTime     @default(now())
+  finishedAt      DateTime?
+  // pending | running | completed | failed
+  status          String       @default("pending")
+  // Counts denormalised from the spawned DriftRun for fast trend rendering.
+  fixturesExamined Int         @default(0)
+  matchCount      Int          @default(0)
+  driftCount      Int          @default(0)
+  criticalCount   Int          @default(0)
+  warningCount    Int          @default(0)
+  newCriticalCount Int         @default(0)
+  newWarningCount Int          @default(0)
+  errorMessage    String?
+  alerts          DriftAlert[]
+
+  @@index([shopDomain, startedAt])
+}
+
+// ---------------------------------------------------------------------------
+// DriftAlert — Slice 7: a single fixture-level severity escalation detected
+// by comparing this run's drift to the previous run. One row per fixture
+// where severity worsened (e.g. info → warning, none → critical) within a
+// RegressionRun.
+//
+// Distinct from DriftResult (Slice 6) — DriftResult is the per-fixture diff
+// output; DriftAlert is the trend signal "this fixture got worse since
+// yesterday." Only the trend signal triggers the email.
+// ---------------------------------------------------------------------------
+model DriftAlert {
+  id               String        @id @default(cuid())
+  shopDomain       String
+  shop             Shop          @relation(fields: [shopDomain], references: [myshopifyDomain], onDelete: Cascade)
+  regressionRunId  String
+  regressionRun    RegressionRun @relation(fields: [regressionRunId], references: [id], onDelete: Cascade)
+  fixtureSignature String
+  // "critical" or "warning" — info-level alerts are not persisted (too noisy).
+  severity         String
+  // The severity in the PREVIOUS run for this fixture. "none" means the
+  // fixture didn't drift previously. Used in the email + dashboard to show
+  // the escalation arrow.
+  previousSeverity String        @default("none")
+  // Short message extracted from the underlying DriftResult (kept inline so
+  // the email renderer doesn't need to re-join across tables).
+  summary          String
+  // Whether the alert email was rendered + dispatched. Slice 7 v1 stores
+  // the rendered HTML and marks dispatched=true once the cron handler logs
+  // it for the deployer's email service to forward.
+  dispatchedAt     DateTime?
+  createdAt        DateTime      @default(now())
+
+  @@index([shopDomain, createdAt])
+  @@index([regressionRunId])
 }
