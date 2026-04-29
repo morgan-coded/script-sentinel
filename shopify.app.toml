@@ -1,10 +1,9 @@
 # Script Sentinel — Plus-only, read-only regression-testing app
-# This file stores configurations for your Shopify app. The CLI fills in client_id
-# on `shopify app config link`. Keep all scopes read-only (Slice 1 architectural commitment).
+# Keep all scopes read-only (Slice 1 architectural commitment).
 
 name = "Script Sentinel"
-client_id = ""
-application_url = ""
+client_id = "fb9981a0f053223f984058d9d0df143e"
+application_url = "https://script-sentinel-ptkfe.ondigitalocean.app"
 embedded = true
 
 [access_scopes]
@@ -20,6 +19,11 @@ embedded = true
 #     is unrelated (storefront ScriptTag) and intentionally excluded from Slice 1.
 scopes = "read_orders,read_products,read_discounts,read_locations,read_shipping"
 use_legacy_install_flow = false
+
+[auth]
+redirect_urls = [
+  "https://script-sentinel-ptkfe.ondigitalocean.app/auth/callback",
+]
 
 [webhooks]
 api_version = "2026-04"
@@ -56,4 +60,7 @@ api_version = "2026-04"
   uri = "/webhooks/shop/redact"
 
 [build]
-include_config_on_deploy = true
+automatically_update_urls_on_dev = true
+name = "remix"
+roles = ["frontend", "backend"]
+webhooks_path = "/webhooks/app/uninstalled"
