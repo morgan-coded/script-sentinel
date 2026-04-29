@@ -62,6 +62,8 @@ model Shop {
   discoveredFunctions DiscoveredFunction[]
   captureRuns         CaptureRun[]
   functionOutputs     FunctionOutput[]
+  driftRuns           DriftRun[]
+  driftResults        DriftResult[]
 }
 
 // ---------------------------------------------------------------------------
@@ -468,4 +470,66 @@ model FunctionOutput {
   @@unique([shopDomain, fixtureSignature, sourceOrderGid])
   @@index([shopDomain, capturedAt])
   @@index([shopDomain, functionId])
+}
+
+// ---------------------------------------------------------------------------
+// DriftRun — Slice 6: one execution of the diff engine against the shop's
+// FixtureBaseline + FunctionOutput rows. Persisted so the route can show
+// "last run: 23 fixtures examined, 4 critical drifts" without re-computing.
+// Re-runs are safe — a new DriftRun creates fresh DriftResult rows; older
+// runs stay readable for trend analysis.
+// ---------------------------------------------------------------------------
+model DriftRun {
+  id               String        @id @default(cuid())
+  shopDomain       String
+  shop             Shop          @relation(fields: [shopDomain], references: [myshopifyDomain], onDelete: Cascade)
+  startedAt        DateTime      @default(now())
+  finishedAt       DateTime?
+  // Counts pulled out of results for fast list rendering.
+  fixturesExamined Int           @default(0)
+  matchCount       Int           @default(0)
+  missingCount     Int           @default(0)
+  driftCount       Int           @default(0)
+  criticalCount    Int           @default(0)
+  warningCount     Int           @default(0)
+  infoCount        Int           @default(0)
+  // pending | running | completed | failed
+  status           String        @default("pending")
+  errorMessage     String?
+  results          DriftResult[]
+
+  @@index([shopDomain, startedAt])
+}
+
+// ---------------------------------------------------------------------------
+// DriftResult — Slice 6: one row per fixture where the diff engine found
+// drift. Stores the structured baseline + output summaries so the UI can
+// render side-by-side without re-joining.
+//
+// Severity values: "critical" | "warning" | "info". Matches and missing-data
+// fixtures are NOT persisted — they're counted in the parent DriftRun for
+// fast summary rendering.
+// ---------------------------------------------------------------------------
+model DriftResult {
+  id               String   @id @default(cuid())
+  shopDomain       String
+  shop             Shop     @relation(fields: [shopDomain], references: [myshopifyDomain], onDelete: Cascade)
+  driftRunId       String
+  driftRun         DriftRun @relation(fields: [driftRunId], references: [id], onDelete: Cascade)
+  fixtureSignature String
+  severity         String
+  // Categories of drift detected. JSON array of "discount" | "shipping" |
+  // "payment" | "totals". Multiple categories possible per fixture.
+  categories       String   @default("[]")
+  message          String
+  recommendation   String
+  // Pre/post snapshots for the side-by-side UI. JSON, mirrors the diff
+  // engine's DriftSummary type.
+  baselineSummary  String   @default("{}")
+  outputSummary    String   @default("{}")
+  createdAt        DateTime @default(now())
+
+  @@index([shopDomain, severity])
+  @@index([shopDomain, fixtureSignature])
+  @@index([driftRunId])
 }

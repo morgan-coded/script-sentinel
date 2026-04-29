@@ -112,14 +112,70 @@ describe("AuditReportDocument", () => {
       tree.indexOf("Executive summary"),
       tree.indexOf("Per-script breakdown"),
       tree.indexOf("Fixture-by-fixture risk table"),
+      tree.indexOf("Drift alerts"),
       tree.indexOf("Migration checklist"),
     ];
     // Each must be present and in monotonically-increasing order — no
-    // section may be missing, none may swap places.
+    // section may be missing, none may swap places. Drift alerts (Slice 6)
+    // sits between fixtures and checklist.
     expect(indexes.every((i) => i >= 0)).toBe(true);
     for (let i = 1; i < indexes.length; i++) {
       expect(indexes[i]).toBeGreaterThan(indexes[i - 1]);
     }
+  });
+
+  it("renders the Drift Alerts section with severity badges + recommendations", () => {
+    const baseSnapshot = buildAuditSnapshot(FIXED_INPUT);
+    const snapshot = {
+      ...baseSnapshot,
+      drift: {
+        generatedAt: "2026-04-29T11:00:00.000Z",
+        examined: 4,
+        matched: 1,
+        missing: 1,
+        drift: 2,
+        critical: 1,
+        warning: 1,
+        info: 0,
+        alerts: [
+          {
+            fixtureSignature: "sig-critical-aaaaaaaaaaaa",
+            severity: "critical" as const,
+            categories: ["discount" as const],
+            message: "Discount decreased by 5.00 USD.",
+            recommendation: "Verify the new Function applies the same rule.",
+            baseline: {
+              totalDiscount: 10,
+              shippingCode: "STANDARD",
+              shippingAmount: 10,
+              paymentGateways: ["shopify_payments"],
+              cartTotal: 100,
+              presentmentCurrency: "USD",
+            },
+            output: {
+              totalDiscount: 5,
+              shippingCode: "STANDARD",
+              shippingAmount: 10,
+              paymentGateways: ["shopify_payments"],
+              cartTotal: 95,
+              presentmentCurrency: "USD",
+            },
+          },
+        ],
+        missingSignatures: ["sig-untested-bbbbbbbbbb"],
+      },
+    };
+    const tree = renderToString(<AuditReportDocument snapshot={snapshot} />);
+    expect(tree).toContain("Drift alerts");
+    expect(tree).toContain("CRITICAL");
+    expect(tree).toContain("Discount decreased by 5.00 USD");
+    expect(tree).toContain("untested in production");
+  });
+
+  it("renders an explainer when no drift summary is attached (legacy snapshot)", () => {
+    const snapshot = { ...buildAuditSnapshot(FIXED_INPUT), drift: null };
+    const tree = renderToString(<AuditReportDocument snapshot={snapshot} />);
+    expect(tree).toContain("No drift run is attached");
   });
 
   it("includes the merchant's shop name and the generated-at date in the header", () => {

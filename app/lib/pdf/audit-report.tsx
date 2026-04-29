@@ -21,6 +21,7 @@ import {
   StyleSheet,
 } from "@react-pdf/renderer";
 import type { AuditSnapshot, RiskGrade } from "../audit/risk-scorer";
+import type { DriftSeverity } from "../audit/diff-engine";
 
 const palette = {
   ink: "#0F172A",
@@ -372,6 +373,103 @@ function ChecklistSection({ snapshot }: { snapshot: AuditSnapshot }) {
   );
 }
 
+function DriftSeverityBadge({ severity }: { severity: DriftSeverity }) {
+  const color =
+    severity === "critical"
+      ? palette.high
+      : severity === "warning"
+        ? palette.medium
+        : palette.unknown;
+  return (
+    <Text style={[styles.badge, { backgroundColor: color }]}>
+      {severity.toUpperCase()}
+    </Text>
+  );
+}
+
+function DriftAlertsSection({ snapshot }: { snapshot: AuditSnapshot }) {
+  // Slice 6 — drift insertion point. Sits between fixtures and checklist so
+  // the merchant sees "what diverged in production" before "what to do about
+  // it." When drift wasn't run for this audit (legacy snapshot or no
+  // Function deployments yet), render a brief explainer instead of nothing.
+  const drift = snapshot.drift;
+  if (!drift) {
+    return (
+      <View style={styles.section} break>
+        <Text style={styles.sectionHeading}>Drift alerts</Text>
+        <Text style={styles.paragraph}>
+          No drift run is attached to this audit. Run the diff engine from the
+          Drift page to compare your Slice 3 fixture baselines against
+          captured Function-era outputs.
+        </Text>
+      </View>
+    );
+  }
+
+  const summaryLine = `${drift.examined} fixtures examined · ${drift.matched} match · ${drift.drift} drift (${drift.critical} critical, ${drift.warning} warning, ${drift.info} info) · ${drift.missing} untested in production`;
+
+  return (
+    <View style={styles.section} break>
+      <Text style={styles.sectionHeading}>Drift alerts</Text>
+      <Text style={styles.mutedSmall}>{summaryLine}</Text>
+      {drift.alerts.length === 0 ? (
+        <Text style={styles.paragraph}>
+          {drift.examined === 0
+            ? "No fixtures available to diff yet. Generate cart fixtures and capture Function outputs first."
+            : "Every captured Function output matches its Script-era baseline. No drift detected."}
+        </Text>
+      ) : (
+        drift.alerts.map((alert) => (
+          <View key={alert.fixtureSignature} style={styles.card} wrap={false}>
+            <View style={styles.cardHeader}>
+              <Text style={styles.cardTitle}>
+                Fixture {alert.fixtureSignature.slice(0, 12)}…
+              </Text>
+              <DriftSeverityBadge severity={alert.severity} />
+            </View>
+            <Text style={styles.mutedSmall}>
+              Categories: {alert.categories.join(", ")}
+            </Text>
+            <Bullet>{alert.message}</Bullet>
+            <Bullet>{alert.recommendation}</Bullet>
+            <Text style={styles.mutedSmall}>
+              Baseline: discount{" "}
+              {alert.baseline.totalDiscount.toFixed(2)}{" "}
+              {alert.baseline.presentmentCurrency}
+              {alert.baseline.shippingCode
+                ? ` · ${alert.baseline.shippingCode} ${(alert.baseline.shippingAmount ?? 0).toFixed(2)}`
+                : ""}
+              {alert.baseline.paymentGateways.length > 0
+                ? ` · ${alert.baseline.paymentGateways.join("/")}`
+                : ""}
+            </Text>
+            <Text style={styles.mutedSmall}>
+              Function output: discount{" "}
+              {alert.output.totalDiscount.toFixed(2)}{" "}
+              {alert.output.presentmentCurrency}
+              {alert.output.shippingCode
+                ? ` · ${alert.output.shippingCode} ${(alert.output.shippingAmount ?? 0).toFixed(2)}`
+                : ""}
+              {alert.output.paymentGateways.length > 0
+                ? ` · ${alert.output.paymentGateways.join("/")}`
+                : ""}
+            </Text>
+          </View>
+        ))
+      )}
+      {drift.missingSignatures.length > 0 ? (
+        <Text style={styles.mutedSmall}>
+          {drift.missingSignatures.length} fixture
+          {drift.missingSignatures.length === 1 ? "" : "s"} have no captured
+          Function output yet — untested in production. See the Functions
+          page to capture more orders, or generate a synthetic order before
+          cutover.
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
 function OpenQuestionsSection({ snapshot }: { snapshot: AuditSnapshot }) {
   if (snapshot.openQuestions.length === 0) return null;
   return (
@@ -417,6 +515,7 @@ export function AuditReportDocument({ snapshot }: AuditReportDocumentProps) {
         <ExecutiveSummary snapshot={snapshot} />
         <PerScriptSection snapshot={snapshot} />
         <FixturesSection snapshot={snapshot} />
+        <DriftAlertsSection snapshot={snapshot} />
         <ChecklistSection snapshot={snapshot} />
         <OpenQuestionsSection snapshot={snapshot} />
         <Footer snapshot={snapshot} />

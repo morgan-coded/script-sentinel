@@ -40,6 +40,7 @@ import {
 } from "../lib/audit/store.server";
 import { listScripts } from "../lib/shopify/scripts";
 import { listFixtures } from "../lib/fixtures/store.server";
+import { runDriftAndPersist } from "../lib/audit/diff-runner.server";
 import { NON_PLUS_GATE_MESSAGE } from "../lib/shopify/plan-copy";
 
 /**
@@ -255,6 +256,33 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           }
         : null,
     }));
+    // Slice 6 — run the diff engine BEFORE building the snapshot so the PDF
+    // includes the Drift Alerts section. Failures here don't block the
+    // audit (the merchant has already paid); we just attach a null `drift`
+    // and surface the error in the route response. Diff itself is pure;
+    // the persistence layer marks the run failed if it throws.
+    const driftAt = new Date().toISOString();
+    let driftSummary: Parameters<typeof buildAuditSnapshot>[0]["drift"] = undefined;
+    try {
+      const outcome = await runDriftAndPersist(session.shop);
+      driftSummary = {
+        generatedAt: driftAt,
+        examined: outcome.diff.stats.fixturesExamined,
+        matched: outcome.diff.stats.match,
+        missing: outcome.diff.stats.missing,
+        drift: outcome.diff.stats.drift,
+        critical: outcome.diff.stats.critical,
+        warning: outcome.diff.stats.warning,
+        info: outcome.diff.stats.info,
+        alerts: outcome.diff.results,
+        missingSignatures: outcome.diff.missingSignatures,
+      };
+    } catch (err) {
+      // Swallow — the snapshot still gets a `drift: null` and the merchant
+      // can re-run from /app/drift afterward.
+      driftSummary = undefined;
+      console.warn("Drift run failed during audit generate:", err);
+    }
     const snapshot = buildAuditSnapshot({
       shopName: plan.shopName ?? session.shop,
       shopDomain: session.shop,
@@ -263,6 +291,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       fixtures,
       scope: scopeForPlan(purchase.plan),
       generatedAt: new Date().toISOString(),
+      drift: driftSummary,
     });
     await saveAuditReport({ shopDomain: session.shop, purchaseId, snapshot });
     return { ok: true as const };
