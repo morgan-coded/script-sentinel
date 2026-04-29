@@ -1,0 +1,90 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Slice 1 ships with SQLite to match the Shopify Remix template default and
+// keep `npm run setup` working without a Postgres dependency. The schema is
+// intentionally Postgres-compatible: only String / Int / DateTime / Boolean,
+// no SQLite-specific defaults. Switching to Postgres later is a one-line
+// `provider = "postgresql"` change plus DATABASE_URL.
+datasource db {
+  provider = "sqlite"
+  url      = "file:dev.sqlite"
+}
+
+// ---------------------------------------------------------------------------
+// Session — owned by @shopify/shopify-app-session-storage-prisma. Do not rename
+// fields; they are read by the library directly.
+// ---------------------------------------------------------------------------
+model Session {
+  id                  String    @id
+  shop                String
+  state               String
+  isOnline            Boolean   @default(false)
+  scope               String?
+  expires             DateTime?
+  accessToken         String
+  userId              BigInt?
+  firstName           String?
+  lastName            String?
+  email               String?
+  accountOwner        Boolean   @default(false)
+  locale              String?
+  collaborator        Boolean?  @default(false)
+  emailVerified       Boolean?  @default(false)
+  refreshToken        String?
+  refreshTokenExpires DateTime?
+}
+
+// ---------------------------------------------------------------------------
+// Shop — Script Sentinel's per-store record. One row per myshopify domain.
+// Caches the latest plan-detection snapshot so the dashboard can render
+// without re-querying GraphQL on every load, and gives the uninstall webhook
+// a join key for cleanup.
+// ---------------------------------------------------------------------------
+model Shop {
+  myshopifyDomain   String    @id
+  shopName          String?
+  isPlus            Boolean   @default(false)
+  isDevelopment     Boolean   @default(false)
+  planDisplayName   String?
+  installedAt       DateTime  @default(now())
+  lastSeenAt        DateTime  @default(now())
+  uninstalledAt     DateTime?
+  charges           Charge[]
+}
+
+// ---------------------------------------------------------------------------
+// Charge — record of every Shopify Managed Billing charge we've initiated.
+// State here is a cache; Shopify Billing API is the source of truth. Lets the
+// dashboard show "audit pending payment" / "subscription active" without an
+// extra GraphQL round-trip per request.
+// ---------------------------------------------------------------------------
+model Charge {
+  id                  String   @id @default(cuid())
+  shopDomain          String
+  shop                Shop     @relation(fields: [shopDomain], references: [myshopifyDomain], onDelete: Cascade)
+  // Mirrors BillingPlanKey in app/lib/billing/products.ts. Stored as String for
+  // SQLite compatibility; enforce the union at the application layer.
+  planKey             String
+  // "one_time" or "recurring", mirroring ChargeKind.
+  kind                String
+  amount              Int
+  currencyCode        String   @default("USD")
+  // Lifecycle states — kept simple in Slice 1: pending | active | declined |
+  // cancelled | expired. Validated at the call site.
+  status              String   @default("pending")
+  // Shopify-side identifier (gid://shopify/AppSubscription/123 or AppPurchaseOneTime/123).
+  shopifyChargeGid    String?  @unique
+  confirmationUrl     String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  activatedAt         DateTime?
+  cancelledAt         DateTime?
+
+  @@index([shopDomain, status])
+  @@index([planKey])
+}

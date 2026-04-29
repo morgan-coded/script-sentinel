@@ -1,0 +1,41 @@
+# Script Sentinel — Plus-only, read-only regression-testing app
+# This file stores configurations for your Shopify app. The CLI fills in client_id
+# on `shopify app config link`. Keep all scopes read-only (Slice 1 architectural commitment).
+
+name = "Script Sentinel"
+client_id = ""
+application_url = ""
+embedded = true
+
+[access_scopes]
+# READ-ONLY ONLY. Adding any write_* scope is a Slice 1 regression — the entire
+# product premise is that we never modify checkout, discounts, scripts, or functions.
+#
+# Notes on the roadmap-listed scopes:
+#   - `read_checkouts` is NOT a real Admin API scope as of API 2026-04. Abandoned-
+#     checkout fields live under `read_orders`, so we drop it here.
+#   - Script-discovery (Shopify Scripts admin object) does not have a `read_scripts`
+#     scope and Admin-API access is unverified for the deprecation window. We will
+#     revisit in Slice 2 with a merchant-paste fallback if needed. `read_script_tags`
+#     is unrelated (storefront ScriptTag) and intentionally excluded from Slice 1.
+scopes = "read_orders,read_products,read_discounts,read_locations,read_shipping"
+use_legacy_install_flow = false
+
+[webhooks]
+api_version = "2026-04"
+
+  # Handled by: /app/routes/webhooks.app.uninstalled.tsx
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/uninstalled"
+  topics = ["app/uninstalled"]
+
+  # Handled by: /app/routes/webhooks.app.scopes_update.tsx
+  [[webhooks.subscriptions]]
+  topics = ["app/scopes_update"]
+  uri = "/webhooks/app/scopes_update"
+
+  # GDPR mandatory compliance webhooks are wired in Slice 9 (App Store submission).
+  # Stubs intentionally not included here so we don't ship empty handlers.
+
+[build]
+include_config_on_deploy = true
