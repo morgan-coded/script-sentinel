@@ -1,20 +1,22 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
-import { Form, useLoaderData, useNavigation } from "@remix-run/react";
+import { Form, useActionData, useLoaderData, useNavigation, useRouteError } from "@remix-run/react";
 import {
   Badge,
+  Banner,
   BlockStack,
   Box,
   Button,
   Card,
-  EmptyState,
   InlineStack,
   Layout,
   List,
   Page,
   Text,
 } from "@shopify/polaris";
-import { TitleBar } from "@shopify/app-bridge-react";
-import { useState } from "react";
+import { boundary } from "@shopify/shopify-app-remix/server";
+import { TitleBar, useAppBridge } from "@shopify/app-bridge-react";
+import { useEffect, useState } from "react";
+import { SentinelEmptyState } from "../components/SentinelEmptyState";
 import { authenticate } from "../shopify.server";
 import { fetchShopPlan } from "../lib/shopify/plan.server";
 import { upsertShopFromPlan } from "../lib/shopify/shop.server";
@@ -209,8 +211,41 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
 export default function FunctionsIndex() {
   const data = useLoaderData<typeof loader>();
+  const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const submitting = navigation.state === "submitting";
+  const shopify = useAppBridge();
+
+  // Slice 7 polish — toast on action success/failure. Discovery and capture
+  // both produce summary objects with counts; we surface a one-line
+  // confirmation rather than making the merchant scan diff stats.
+  useEffect(() => {
+    if (!actionData) return;
+    if ("ok" in actionData && actionData.ok === true) {
+      const summary = actionData.summary as Record<string, number | undefined>;
+      if (typeof summary.total === "number") {
+        shopify.toast.show(
+          `Discovered ${summary.total} Function${summary.total === 1 ? "" : "s"}.`,
+        );
+      } else {
+        const outputs = summary.outputsCaptured ?? 0;
+        shopify.toast.show(
+          `Capture complete — ${outputs} output${outputs === 1 ? "" : "s"} captured.`,
+        );
+      }
+    } else if ("error" in actionData && actionData.error) {
+      shopify.toast.show(actionData.error, { isError: true });
+    }
+  }, [actionData, shopify]);
+
+  // Slice 7 — surface an access-denied explainer banner above the action
+  // bar when the most recent discover attempt was rejected on scope grounds.
+  // Friendlier than burying the error in a toast.
+  const accessDenied =
+    actionData &&
+    "error" in actionData &&
+    typeof actionData.error === "string" &&
+    actionData.error.toLowerCase().includes("scope");
 
   if (!data.isPlus) {
     return (
@@ -238,6 +273,22 @@ export default function FunctionsIndex() {
       <TitleBar title="Functions capture" />
       <Layout>
         <Layout.Section>
+          {accessDenied ? (
+            <Box paddingBlockEnd="400">
+              <Banner
+                title="Functions discovery requires additional permissions"
+                tone="warning"
+              >
+                <p>
+                  Shopify rejected the request to read your installed
+                  Functions. This usually means the app needs the{" "}
+                  <code>read_apps</code> scope, which we'll request on next
+                  install. Re-install the app from the Apps page, or contact
+                  support so we can extend the requested scopes for your shop.
+                </p>
+              </Banner>
+            </Box>
+          ) : null}
           <Card>
             <BlockStack gap="300">
               <Text as="h2" variant="headingMd">
@@ -276,14 +327,17 @@ export default function FunctionsIndex() {
                   Installed Functions ({installed.length})
                 </Text>
                 {installed.length === 0 ? (
-                  <EmptyState heading="No Functions discovered yet" image="">
-                    <p>
-                      Click "Discover Functions" to query Shopify for the
-                      Functions deployed on your store. If you haven't deployed
-                      any Function replacements for your Scripts yet, this list
-                      will stay empty.
-                    </p>
-                  </EmptyState>
+                  <SentinelEmptyState
+                    heading="No Functions discovered yet"
+                    body={
+                      <>
+                        Click <strong>Discover Functions</strong> to query
+                        Shopify for the Functions deployed on your store. If you
+                        haven't deployed any Function replacements for your
+                        Scripts yet, this list will stay empty.
+                      </>
+                    }
+                  />
                 ) : (
                   <BlockStack gap="200">
                     {installed.map((fn) => (
@@ -424,4 +478,11 @@ function badgeToneFor(
     default:
       return "warning";
   }
+}
+
+/**
+ * Slice 7 — friendly route-level error boundary.
+ */
+export function ErrorBoundary() {
+  return boundary.error(useRouteError());
 }

@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import db from "../app/db.server";
 import {
   buildCategoryAttributionMap,
+  countAllFunctionOutputs,
   finishCaptureRun,
   listCaptureRuns,
   listDiscoveredFunctions,
@@ -246,6 +247,32 @@ describe("CaptureRun lifecycle + persistFunctionOutputsFromOrders", () => {
     });
     const runs = await listCaptureRuns(SHOP);
     expect(runs[0].status).toBe("completed");
+  });
+
+  it("countAllFunctionOutputs only marks the dashboard capture step done after real outputs land", async () => {
+    // Codex review-response fix: a CaptureRun (or downstream drift run) that
+    // produced zero outputs must not flip the stepper to 'done'.
+    expect(await countAllFunctionOutputs(SHOP)).toBe(0);
+
+    const run = await startCaptureRun(SHOP, {
+      from: new Date("2026-04-15T00:00:00Z"),
+      to: new Date("2026-04-29T00:00:00Z"),
+    });
+    await finishCaptureRun(run.id, {
+      status: "completed",
+      ordersExamined: 7,
+      outputsCaptured: 0,
+    });
+    // Empty CaptureRun → still zero outputs, stepper must stay 'todo'.
+    expect(await countAllFunctionOutputs(SHOP)).toBe(0);
+
+    await persistFunctionOutputsFromOrders(
+      SHOP,
+      run.id,
+      [rawOrder("gid://shopify/Order/CountTest", { discountAmount: 5 })],
+      new Map(),
+    );
+    expect(await countAllFunctionOutputs(SHOP)).toBe(1);
   });
 
   it("gracefully handles empty-order runs (slice's defensive contract)", async () => {

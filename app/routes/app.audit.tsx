@@ -1,18 +1,20 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
-import { Form, useLoaderData, useNavigation } from "@remix-run/react";
+import { Form, useActionData, useLoaderData, useNavigation, useRouteError } from "@remix-run/react";
+import { useEffect } from "react";
 import {
   Badge,
   BlockStack,
   Box,
   Button,
   Card,
-  EmptyState,
   InlineStack,
   Layout,
   Page,
   Text,
 } from "@shopify/polaris";
-import { TitleBar } from "@shopify/app-bridge-react";
+import { boundary } from "@shopify/shopify-app-remix/server";
+import { TitleBar, useAppBridge } from "@shopify/app-bridge-react";
+import { SentinelEmptyState } from "../components/SentinelEmptyState";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import { fetchShopPlan } from "../lib/shopify/plan.server";
@@ -353,9 +355,23 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
 export default function Audit() {
   const data = useLoaderData<typeof loader>();
+  const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const submitting = navigation.state === "submitting";
+  const shopify = useAppBridge();
   const view = data.view;
+
+  // Slice 7 — toast on action success. We surface a one-line confirmation
+  // for each action intent so the merchant doesn't have to read counts to
+  // know whether something happened.
+  useEffect(() => {
+    if (!actionData) return;
+    if ("ok" in actionData && actionData.ok === true) {
+      shopify.toast.show("Audit report generated.");
+    } else if ("error" in actionData && actionData.error) {
+      shopify.toast.show(actionData.error, { isError: true });
+    }
+  }, [actionData, shopify]);
 
   if (view.state === "non-plus") {
     return (
@@ -463,9 +479,10 @@ export default function Audit() {
                   Reports
                 </Text>
                 {view.reports.length === 0 ? (
-                  <EmptyState heading="No reports yet" image="">
-                    <p>Click "Generate audit" to produce your first Migration Risk PDF.</p>
-                  </EmptyState>
+                  <SentinelEmptyState
+                    heading="No reports yet"
+                    body='Click "Generate audit" to produce your first Migration Risk PDF.'
+                  />
                 ) : (
                   <BlockStack gap="200">
                     {view.reports.map((report) => (
@@ -503,4 +520,13 @@ export default function Audit() {
       </Layout>
     </Page>
   );
+}
+
+/**
+ * Slice 7 — friendly route-level error boundary. Catches loader/action
+ * throws (including thrown Responses) and routes them through Shopify's
+ * standard boundary helper, which renders an embedded-app-aware error UI.
+ */
+export function ErrorBoundary() {
+  return boundary.error(useRouteError());
 }

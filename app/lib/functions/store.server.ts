@@ -345,6 +345,10 @@ export async function countFunctionOutputs(
   });
 }
 
+export async function countAllFunctionOutputs(shopDomain: string): Promise<number> {
+  return db.functionOutput.count({ where: { shopDomain } });
+}
+
 function safeJsonArray(raw: string | null | undefined): string[] {
   if (!raw) return [];
   try {

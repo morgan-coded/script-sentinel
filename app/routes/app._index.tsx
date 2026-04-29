@@ -1,5 +1,5 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
-import { useLoaderData } from "@remix-run/react";
+import { useLoaderData, useRouteError } from "@remix-run/react";
 import {
   Badge,
   BlockStack,
@@ -8,10 +8,12 @@ import {
   Card,
   InlineStack,
   Layout,
+  Link as PolarisLink,
   List,
   Page,
   Text,
 } from "@shopify/polaris";
+import { boundary } from "@shopify/shopify-app-remix/server";
 import { TitleBar } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import { fetchShopPlan } from "../lib/shopify/plan.server";
@@ -20,34 +22,109 @@ import {
   getLatestCharge,
   upsertShopFromPlan,
 } from "../lib/shopify/shop.server";
+import { BILLING_PRODUCTS, formatPrice } from "../lib/billing/products";
+import { listScripts } from "../lib/shopify/scripts";
+import { listFixtures } from "../lib/fixtures/store.server";
 import {
-  BILLING_PRODUCTS,
-  formatPrice,
-} from "../lib/billing/products";
+  countAllFunctionOutputs,
+  listDiscoveredFunctions,
+} from "../lib/functions/store.server";
+import {
+  getActivePurchase,
+  getLatestDriftRun,
+} from "../lib/audit/store.server";
+import { SentinelEmptyState } from "../components/SentinelEmptyState";
+import {
+  driftCountsLine,
+  fmtDay,
+} from "../lib/ui/polish-helpers";
 
 /**
- * Slice 1 dashboard — placeholder.
+ * Dashboard.
  *
- * Shows shop name, Plus status, current billing/action state, and a CTA to run
- * a migration audit. The audit paywall is wired in Slice 4; this CTA only
- * surfaces the future destination so the dashboard isn't empty.
+ * After Slice 7 polish, the dashboard is a six-step progress stepper that
+ * mirrors the merchant's actual workflow: install → inventory scripts →
+ * generate fixtures → buy + run audit → discover Functions → capture
+ * outputs → run drift. Every step shows its own status (pending / done /
+ * needs attention) computed from real database state — no fabricated
+ * progress signals.
  *
- * Architectural rule: this route runs the Plus gate on every load. If the shop
- * is not Plus, render the gate copy and stop. We do NOT redirect, because the
- * embedded App Bridge frame should still resolve a valid HTML response.
+ * Plus-gate is enforced before any data load so non-Plus shops get the
+ * dedicated gate page rather than empty cards.
  */
+
+type StepStatus = "todo" | "done" | "blocked";
+
+type StepView = {
+  number: number;
+  title: string;
+  description: string;
+  status: StepStatus;
+  /** Optional one-line state hint like "5 scripts inventoried". */
+  stateHint?: string;
+  /** Where the primary CTA points. */
+  href: string;
+  ctaLabel: string;
+};
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
   const plan = await fetchShopPlan(admin);
   const shop = await upsertShopFromPlan(session.shop, plan);
-  const charge = plan.isPlus ? await getLatestCharge(session.shop) : null;
+  if (!plan.isPlus) {
+    return {
+      isPlus: false as const,
+      shopName: shop.shopName ?? plan.shopName ?? session.shop,
+      shopDomain: session.shop,
+      planDisplayName: plan.publicDisplayName,
+    };
+  }
+
+  // Pull state from every prior slice so the stepper renders honest progress.
+  const [
+    charge,
+    scripts,
+    fixtures,
+    functions,
+    capturedOutputs,
+    activePurchase,
+    latestDrift,
+  ] = await Promise.all([
+    getLatestCharge(session.shop),
+    listScripts(session.shop),
+    listFixtures(session.shop),
+    listDiscoveredFunctions(session.shop),
+    countAllFunctionOutputs(session.shop),
+    getActivePurchase(session.shop),
+    getLatestDriftRun(session.shop),
+  ]);
 
   return {
+    isPlus: true as const,
+    isDevelopment: plan.isDevelopment,
     shopDomain: session.shop,
     shopName: shop.shopName ?? plan.shopName ?? session.shop,
-    isPlus: plan.isPlus,
-    isDevelopment: plan.isDevelopment,
     planDisplayName: plan.publicDisplayName,
+    counts: {
+      scripts: scripts.length,
+      activeScripts: scripts.filter((s) => s.isActive).length,
+      fixtures: fixtures.length,
+      functions: functions.filter((f) => !f.uninstalledAt).length,
+      capturedOutputs,
+    },
+    auditProduct: {
+      key: BILLING_PRODUCTS.MIGRATION_RISK_AUDIT.key,
+      displayName: BILLING_PRODUCTS.MIGRATION_RISK_AUDIT.displayName,
+      priceLabel: formatPrice(BILLING_PRODUCTS.MIGRATION_RISK_AUDIT),
+      description: BILLING_PRODUCTS.MIGRATION_RISK_AUDIT.description,
+    },
+    activePurchase: activePurchase
+      ? {
+          plan: activePurchase.planKey,
+          activatedAt: activePurchase.activatedAt?.toISOString() ?? null,
+          expiresAt: activePurchase.expiresAt?.toISOString() ?? null,
+        }
+      : null,
     latestCharge: charge
       ? {
           planKey: charge.planKey,
@@ -57,12 +134,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           createdAt: charge.createdAt.toISOString(),
         }
       : null,
-    auditProduct: {
-      key: BILLING_PRODUCTS.MIGRATION_RISK_AUDIT.key,
-      displayName: BILLING_PRODUCTS.MIGRATION_RISK_AUDIT.displayName,
-      priceLabel: formatPrice(BILLING_PRODUCTS.MIGRATION_RISK_AUDIT),
-      description: BILLING_PRODUCTS.MIGRATION_RISK_AUDIT.description,
-    },
+    drift: latestDrift
+      ? {
+          runId: latestDrift.run.id,
+          startedAt: latestDrift.run.startedAt.toISOString(),
+          status: latestDrift.run.status,
+          fixturesExamined: latestDrift.run.fixturesExamined,
+          critical: latestDrift.run.criticalCount,
+          warning: latestDrift.run.warningCount,
+          info: latestDrift.run.infoCount,
+          match: latestDrift.run.matchCount,
+          missing: latestDrift.run.missingCount,
+        }
+      : null,
   };
 };
 
@@ -73,6 +157,88 @@ export default function Index() {
     return <NonPlusGate planDisplayName={data.planDisplayName} />;
   }
 
+  const steps: StepView[] = [
+    {
+      number: 1,
+      title: "Inventory your Scripts",
+      description:
+        "Paste each Shopify Script's Ruby source. We classify it (discount, shipping, payment, market, B2B) so the audit targets real risks.",
+      status: data.counts.scripts > 0 ? "done" : "todo",
+      stateHint:
+        data.counts.scripts > 0
+          ? `${data.counts.scripts} script${data.counts.scripts === 1 ? "" : "s"} inventoried · ${data.counts.activeScripts} active`
+          : undefined,
+      href: "/app/scripts",
+      ctaLabel: data.counts.scripts > 0 ? "Open script inventory" : "Add your first script",
+    },
+    {
+      number: 2,
+      title: "Generate cart fixtures",
+      description:
+        "Pull the last 60 days of orders and build a deduped library of representative carts. PII is stripped — only ISO-2 country + 3-char postal prefix are kept.",
+      status: data.counts.fixtures > 0 ? "done" : "todo",
+      stateHint:
+        data.counts.fixtures > 0
+          ? `${data.counts.fixtures} fixture${data.counts.fixtures === 1 ? "" : "s"} stored`
+          : undefined,
+      href: "/app/fixtures",
+      ctaLabel: data.counts.fixtures > 0 ? "Open fixture library" : "Generate fixtures",
+    },
+    {
+      number: 3,
+      title: "Buy + run the migration audit",
+      description: data.auditProduct.description,
+      status: data.activePurchase ? "done" : "todo",
+      stateHint: data.activePurchase
+        ? `Active purchase · valid until ${fmtDay(data.activePurchase.expiresAt)}`
+        : undefined,
+      href: "/app/audit",
+      ctaLabel: data.activePurchase
+        ? "Open audit + download PDF"
+        : `Run migration audit — ${data.auditProduct.priceLabel}`,
+    },
+    {
+      number: 4,
+      title: "Discover deployed Functions",
+      description:
+        "Once you've migrated a Script to a Shopify Function, we read it via the Admin API. No test-invocation surface exists in 2026-04, so we observe real production outputs instead.",
+      status: data.counts.functions > 0 ? "done" : "todo",
+      stateHint:
+        data.counts.functions > 0
+          ? `${data.counts.functions} Function${data.counts.functions === 1 ? "" : "s"} discovered`
+          : undefined,
+      href: "/app/functions",
+      ctaLabel:
+        data.counts.functions > 0 ? "Open Functions" : "Discover Functions",
+    },
+    {
+      number: 5,
+      title: "Capture Function outputs",
+      description:
+        "Pull recent post-deployment orders and persist the discount, shipping, and payment outcomes that fired during checkout. Step 6 diffs them against your fixture baselines.",
+      status:
+        data.counts.functions > 0 && data.counts.capturedOutputs > 0
+          ? "done"
+          : "todo",
+      href: "/app/functions",
+      ctaLabel: "Capture outputs",
+    },
+    {
+      number: 6,
+      title: "Run drift alerts",
+      description:
+        "Compare Script-era baselines against captured Function outputs. Per-fixture severity (critical / warning / info) surfaces regressions before customers find them.",
+      status: data.drift ? "done" : "todo",
+      stateHint: data.drift
+        ? driftCountsLine(data.drift)
+        : undefined,
+      href: "/app/drift",
+      ctaLabel: data.drift ? "Open drift alerts" : "Run drift",
+    },
+  ];
+
+  const onboardingDone = steps.every((s) => s.status === "done");
+
   return (
     <Page>
       <TitleBar title="Script Sentinel" />
@@ -80,7 +246,7 @@ export default function Index() {
         <Layout>
           <Layout.Section>
             <Card>
-              <BlockStack gap="400">
+              <BlockStack gap="300">
                 <BlockStack gap="100">
                   <Text as="h2" variant="headingLg">
                     {data.shopName}
@@ -99,72 +265,33 @@ export default function Index() {
                   </Text>
                 </BlockStack>
 
-                <BlockStack gap="200">
-                  <Text as="h3" variant="headingMd">
-                    Step 1 — Inventory your scripts
+                {onboardingDone ? (
+                  <Box>
+                    <Badge tone="success">All steps complete</Badge>
+                    <Box paddingBlockStart="200">
+                      <Text as="p" variant="bodyMd">
+                        You're set up end-to-end. Re-run drift periodically as
+                        you ship Function changes; re-runs are free for the life
+                        of your audit purchase.
+                      </Text>
+                    </Box>
+                  </Box>
+                ) : (
+                  <Text as="p" variant="bodyMd" tone="subdued">
+                    Six steps from install to a Migration Risk PDF. Work
+                    top-down — each step shows its own progress in real time.
                   </Text>
-                  <Text as="p" variant="bodyMd">
-                    Paste the Ruby source from each Shopify Script in your store.
-                    Script Sentinel classifies each one (discount, shipping,
-                    payment, market pricing, B2B) so we can target the audit at
-                    the right migration risks.
-                  </Text>
-                  <InlineStack gap="200" blockAlign="center">
-                    <Button variant="primary" url="/app/scripts">
-                      Open script inventory
-                    </Button>
-                  </InlineStack>
-                </BlockStack>
-
-                <BlockStack gap="200">
-                  <Text as="h3" variant="headingMd">
-                    Step 2 — Generate cart fixtures
-                  </Text>
-                  <Text as="p" variant="bodyMd">
-                    Build a deduplicated library of representative carts from
-                    your last 60 days of orders. Customer PII is stripped
-                    before storage; only country code + 3-character postal
-                    prefix are kept.
-                  </Text>
-                  <InlineStack gap="200" blockAlign="center">
-                    <Button variant="primary" url="/app/fixtures">
-                      Open fixture library
-                    </Button>
-                  </InlineStack>
-                </BlockStack>
-
-                <BlockStack gap="200">
-                  <Text as="h3" variant="headingMd">
-                    Step 3 — Migration audit
-                  </Text>
-                  <Text as="p" variant="bodyMd">
-                    {data.auditProduct.description}
-                  </Text>
-                  <InlineStack gap="200" blockAlign="center">
-                    <Button variant="primary" url="/app/audit">
-                      Run migration audit — {data.auditProduct.priceLabel}
-                    </Button>
-                  </InlineStack>
-                </BlockStack>
-
-                <BlockStack gap="200">
-                  <Text as="h3" variant="headingMd">
-                    Step 4 — Drift alerts
-                  </Text>
-                  <Text as="p" variant="bodyMd">
-                    Once Functions are deployed, run the diff engine to compare
-                    captured Function outputs against your Script-era fixture
-                    baselines. Severity grading per fixture surfaces critical
-                    regressions before they reach customers.
-                  </Text>
-                  <InlineStack gap="200" blockAlign="center">
-                    <Button variant="secondary" url="/app/drift">
-                      Open drift alerts
-                    </Button>
-                  </InlineStack>
-                </BlockStack>
+                )}
               </BlockStack>
             </Card>
+
+            <Box paddingBlockStart="500">
+              <BlockStack gap="200">
+                {steps.map((step) => (
+                  <StepCard key={step.number} step={step} />
+                ))}
+              </BlockStack>
+            </Box>
           </Layout.Section>
 
           <Layout.Section variant="oneThird">
@@ -172,9 +299,56 @@ export default function Index() {
               <Card>
                 <BlockStack gap="200">
                   <Text as="h3" variant="headingMd">
-                    Current billing state
+                    Recent activity
                   </Text>
-                  {data.latestCharge ? (
+                  {data.drift ? (
+                    <BlockStack gap="100">
+                      <Text as="span" variant="bodyMd" fontWeight="semibold">
+                        Latest drift run
+                      </Text>
+                      <Text as="span" variant="bodySm" tone="subdued">
+                        {data.drift.startedAt.slice(0, 10)} ·{" "}
+                        {data.drift.fixturesExamined} fixtures examined
+                      </Text>
+                      <InlineStack gap="100">
+                        <Badge tone="critical">{`${data.drift.critical} critical`}</Badge>
+                        <Badge tone="warning">{`${data.drift.warning} warning`}</Badge>
+                        <Badge tone="info">{`${data.drift.info} info`}</Badge>
+                      </InlineStack>
+                      <Box paddingBlockStart="200">
+                        <Button url="/app/drift" variant="plain">
+                          View drift alerts
+                        </Button>
+                      </Box>
+                    </BlockStack>
+                  ) : (
+                    <SentinelEmptyState
+                      heading="No drift runs yet"
+                      body="Drift alerts surface here once you've discovered Functions and run the diff engine."
+                    />
+                  )}
+                </BlockStack>
+              </Card>
+
+              <Card>
+                <BlockStack gap="200">
+                  <Text as="h3" variant="headingMd">
+                    Audit purchase
+                  </Text>
+                  {data.activePurchase ? (
+                    <BlockStack gap="100">
+                      <Text as="span" variant="bodyMd">
+                        {data.activePurchase.plan}
+                      </Text>
+                      <Text as="span" variant="bodySm" tone="subdued">
+                        Activated {fmtDay(data.activePurchase.activatedAt)} ·
+                        valid until {fmtDay(data.activePurchase.expiresAt)}
+                      </Text>
+                      <Button url="/app/audit" variant="plain">
+                        Open audit
+                      </Button>
+                    </BlockStack>
+                  ) : data.latestCharge ? (
                     <BlockStack gap="100">
                       <Text as="span" variant="bodyMd">
                         {data.latestCharge.planKey}
@@ -188,7 +362,7 @@ export default function Index() {
                     </BlockStack>
                   ) : (
                     <Text as="p" variant="bodyMd" tone="subdued">
-                      No charges yet. The audit purchase or subscription will appear here once
+                      No charges yet. The audit purchase appears here once
                       payment is initiated through Shopify Managed Billing.
                     </Text>
                   )}
@@ -207,10 +381,11 @@ export default function Index() {
                     <List.Item>Slice 4 — Migration Risk Audit PDF</List.Item>
                     <List.Item>Slice 5 — Functions output capture</List.Item>
                     <List.Item>Slice 6 — Diff engine + drift alerts</List.Item>
+                    <List.Item>Slice 7 — Pre-launch UX polish</List.Item>
                   </List>
                   <Text as="p" variant="bodySm" tone="subdued">
-                    Continuous regression suite (Slice 7) and multi-customization
-                    expansion (Slice 8) are next.
+                    Continuous regression cron (roadmap Slice 7 — $149/mo product)
+                    and App Store launch (Slice 9) are still ahead.
                   </Text>
                 </BlockStack>
               </Card>
@@ -219,6 +394,52 @@ export default function Index() {
         </Layout>
       </BlockStack>
     </Page>
+  );
+}
+
+function StepCard({ step }: { step: StepView }) {
+  const tone =
+    step.status === "done" ? "success" : step.status === "blocked" ? "critical" : "info";
+  const label =
+    step.status === "done" ? "Done" : step.status === "blocked" ? "Blocked" : "To do";
+  return (
+    <Card>
+      <InlineStack gap="300" blockAlign="start" align="space-between" wrap={false}>
+        <InlineStack gap="200" blockAlign="start" wrap={false}>
+          <Box minWidth="32px">
+            <Text as="span" variant="headingMd" tone="subdued">
+              {step.number}.
+            </Text>
+          </Box>
+          <BlockStack gap="100">
+            <InlineStack gap="200" blockAlign="center">
+              <Text as="h3" variant="headingMd">
+                {step.title}
+              </Text>
+              <Badge tone={tone}>{label}</Badge>
+            </InlineStack>
+            <Text as="p" variant="bodyMd" tone="subdued">
+              {step.description}
+            </Text>
+            {step.stateHint ? (
+              <Text as="p" variant="bodySm" tone="subdued">
+                {step.stateHint}
+              </Text>
+            ) : null}
+          </BlockStack>
+        </InlineStack>
+        <Box minWidth="200px">
+          <InlineStack align="end">
+            <Button
+              url={step.href}
+              variant={step.status === "done" ? "secondary" : "primary"}
+            >
+              {step.ctaLabel}
+            </Button>
+          </InlineStack>
+        </Box>
+      </InlineStack>
+    </Card>
   );
 }
 
@@ -233,27 +454,41 @@ function NonPlusGate({ planDisplayName }: { planDisplayName: string | null }) {
               <Text as="h2" variant="headingLg">
                 Shopify Plus required
               </Text>
-              <Box>
-                <Text as="p" variant="bodyMd">
-                  {NON_PLUS_GATE_MESSAGE}
-                </Text>
-              </Box>
+              <Text as="p" variant="bodyMd">
+                {NON_PLUS_GATE_MESSAGE}
+              </Text>
               {planDisplayName ? (
                 <Text as="p" variant="bodySm" tone="subdued">
                   Detected plan: {planDisplayName}
                 </Text>
               ) : null}
-              <Box>
-                <Text as="p" variant="bodyMd">
-                  If you believe this is a mistake — for example, you upgraded to Plus very
-                  recently — uninstall and reinstall Script Sentinel so the plan check
-                  refreshes.
-                </Text>
-              </Box>
+              <Text as="p" variant="bodyMd">
+                If you believe this is a mistake — for example, you upgraded to
+                Plus very recently — uninstall and reinstall Script Sentinel so
+                the plan check refreshes. To upgrade your store to Plus, contact{" "}
+                <PolarisLink
+                  url="https://www.shopify.com/plus/contact-sales"
+                  target="_blank"
+                  removeUnderline
+                >
+                  Shopify Plus sales
+                </PolarisLink>
+                .
+              </Text>
             </BlockStack>
           </Card>
         </Layout.Section>
       </Layout>
     </Page>
   );
+}
+
+/**
+ * Slice 7 — friendly route-level error boundary. Without this, a thrown
+ * error in the loader would render Remix's default white screen. Now we
+ * surface a calm message + a link back to the dashboard.
+ */
+export function ErrorBoundary() {
+  const error = useRouteError();
+  return boundary.error(error);
 }

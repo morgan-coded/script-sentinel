@@ -1,19 +1,21 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
-import { Form, useLoaderData, useNavigation } from "@remix-run/react";
+import { Form, useActionData, useLoaderData, useNavigation, useRouteError } from "@remix-run/react";
+import { useEffect } from "react";
 import {
   Badge,
   BlockStack,
   Box,
   Button,
   Card,
-  EmptyState,
   InlineStack,
   Layout,
   List,
   Page,
   Text,
 } from "@shopify/polaris";
-import { TitleBar } from "@shopify/app-bridge-react";
+import { boundary } from "@shopify/shopify-app-remix/server";
+import { TitleBar, useAppBridge } from "@shopify/app-bridge-react";
+import { SentinelEmptyState } from "../components/SentinelEmptyState";
 import { authenticate } from "../shopify.server";
 import { fetchShopPlan } from "../lib/shopify/plan.server";
 import { upsertShopFromPlan } from "../lib/shopify/shop.server";
@@ -192,8 +194,22 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
 export default function DriftIndex() {
   const data = useLoaderData<typeof loader>();
+  const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const submitting = navigation.state === "submitting";
+  const shopify = useAppBridge();
+
+  useEffect(() => {
+    if (!actionData) return;
+    if ("ok" in actionData && actionData.ok === true) {
+      const s = actionData.summary;
+      shopify.toast.show(
+        `Drift run complete — ${s.fixturesExamined} fixtures examined, ${s.drift} drift detected.`,
+      );
+    } else if ("error" in actionData && actionData.error) {
+      shopify.toast.show(actionData.error, { isError: true });
+    }
+  }, [actionData, shopify]);
 
   if (!data.view.isPlus) {
     return (
@@ -255,12 +271,10 @@ export default function DriftIndex() {
                   Latest run
                 </Text>
                 {!latest ? (
-                  <EmptyState heading="No runs yet" image="">
-                    <p>
-                      Click "Run diff" above. The first run takes a couple of
-                      seconds for typical shops.
-                    </p>
-                  </EmptyState>
+                  <SentinelEmptyState
+                    heading="No runs yet"
+                    body='Click "Run diff" above. The first run takes a couple of seconds for typical shops.'
+                  />
                 ) : (
                   <BlockStack gap="200">
                     <Text as="p" variant="bodySm" tone="subdued">
@@ -370,4 +384,11 @@ function severityTone(
     case "info":
       return "info";
   }
+}
+
+/**
+ * Slice 7 — friendly route-level error boundary.
+ */
+export function ErrorBoundary() {
+  return boundary.error(useRouteError());
 }
