@@ -13,11 +13,12 @@ import { authenticate } from "../shopify.server";
  * fixtures-persistence tripwire test) strips names, emails, phones, and full
  * addresses before any persistence. Order rows are processed transiently and
  * never written; the only retained fields are deduped cart compositions
- * (variant ids + quantities), market signature (currency + ISO-2 country),
- * and a 3-character postal prefix. None of those identify a specific person.
+ * (variant ids + quantities), currency-based market signature, discount and
+ * shipping outcome summaries, and PII-scrubbed customer tag labels. The launch
+ * configuration does not request optional address fields from Shopify.
  *
  * Therefore: log the request for our audit trail and return 200. Shopify
- * accepts a 200-only response when the app holds no customer data.
+ * accepts a 200-only response when the app holds no identifying customer data.
  *
  * The `authenticate.webhook(request)` call performs HMAC-SHA256 verification
  * against `process.env.SHOPIFY_API_SECRET`. Forged requests throw before any

@@ -262,10 +262,9 @@ export default function FixturesIndex() {
                 </Text>
                 <Text as="p" variant="bodySm" tone="subdued">
                   PII handling: we never persist names, emails, phones, or
-                  addresses. Only the country code (e.g. US) and the first
-                  three characters of the postal code (e.g. 941) are stored.
-                  Customer tags that look like emails, phones, or person names
-                  are dropped before write.
+                  addresses. The launch configuration does not request
+                  optional address fields from Shopify. Customer tags that look
+                  like emails, phones, or person names are dropped before write.
                 </Text>
                 <InlineStack gap="200">
                   <Form method="post" replace>

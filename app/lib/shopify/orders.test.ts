@@ -3,6 +3,7 @@ import {
   buildOrdersQuery,
   DEFAULT_LOOKBACK_DAYS,
   fetchOrdersWindow,
+  ORDERS_PAGE_QUERY,
   OrdersAccessDeniedError,
   type AdminGraphqlClient,
   type RawOrder,
@@ -167,5 +168,10 @@ describe("fetchOrdersWindow", () => {
     });
     expect(capturedQuery).toBe("processed_at:>=2026-02-28");
     expect(DEFAULT_LOOKBACK_DAYS).toBe(60);
+  });
+
+  it("does not request optional address fields without Level 2 approval", () => {
+    expect(ORDERS_PAGE_QUERY).not.toContain("shippingAddress");
+    expect(ORDERS_PAGE_QUERY).not.toContain("zip");
   });
 });

@@ -112,8 +112,9 @@ No new scopes were needed because Shopify exposes no script-discovery API.
 
 - **Verified 2026-04 Order API shape**: orders connection, cursor pagination,
   query-string filter (`processed_at:>=YYYY-MM-DD`), MoneyBag `*Set` shape on
-  line items, `shippingLines` is a connection, `Order.market` does NOT exist
-  (we derive market from `presentmentCurrencyCode` + `shippingAddress.countryCode`).
+  line items, and `shippingLines` is a connection. `Order.market` does NOT
+  exist. The launch query deliberately avoids `shippingAddress` because zip and
+  address fields require Shopify Level 2 protected customer data approval.
   Cited inline in `app/lib/shopify/orders.ts`.
 - **Order history window — 60 days.** `read_orders` exposes only the last 60
   days; the documented `read_all_orders` scope, which would enable a longer
@@ -125,8 +126,10 @@ No new scopes were needed because Shopify exposes no script-discovery API.
   `extensions.cost.throttleStatus.currentlyAvailable` drops below 200), and a
   hard `MAX_ORDERS_PER_RUN = 5000` ceiling.
 - PII scrubber in `app/lib/fixtures/pii.ts`: drops names, emails, phones, and
-  full addresses; keeps only ISO-2 country code and the **first 3 characters
-  of the postal code**. Customer tags pass through a normaliser that lowercases,
+  full addresses. The launch Admin API query does not request optional address
+  fields; if address data is ever supplied through an explicitly approved later
+  path, the scrubber keeps only ISO-2 country code and the first 3 characters
+  of the postal code. Customer tags pass through a normaliser that lowercases,
   collapses punctuation, and rejects PII-shaped tags.
 - Extractor (`extractor.ts`) and dedup (`dedup.ts`) modules — pure, no I/O —
   turning `Order` rows into `(CartFixture, FixtureBaseline)` pairs and
@@ -158,10 +161,12 @@ the app for App Store approval.
 **Privacy notes for App Store review (Slice 9)**
 
 - We never persist customer names, emails, phones, or full addresses.
-- Stored fields per fixture: ISO-2 country code; first 3 characters of postal
-  code, uppercased; merchant-controlled customer tags after a normaliser drops
-  any PII-shaped tags; line items (variant id / product id / sku / title /
-  qty / unit price); discount code values; aggregate cart totals.
+- Stored fields per fixture: merchant-controlled customer tags after a
+  normaliser drops any PII-shaped tags; line items (variant id / product id /
+  sku / title / qty / unit price); discount code values; aggregate cart totals.
+  The launch configuration does not request optional address fields from
+  Shopify. Country/postal fields remain nullable for older/synthetic fixtures
+  and any explicitly approved future address-access path.
 - The persistence test asserts no PII slips through, on every persisted row,
   every run.
 

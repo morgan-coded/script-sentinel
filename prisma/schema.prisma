@@ -173,18 +173,17 @@ model ScriptClassification {
 // ---------------------------------------------------------------------------
 // CartFixture — a deduplicated representative cart drawn from the merchant's
 // historical orders. One row per unique combination of (line-item composition
-// + customer-tag set + shipping country + market signature + applied
-// discounts). Same composition with different quantities collapses into a
-// single fixture; we preserve the quantity diversity in `quantitySamples`
-// rather than storing N near-identical rows.
+// + customer-tag set + market signature + applied discounts). Same composition
+// with different quantities collapses into a single fixture; we preserve the
+// quantity diversity in `quantitySamples` rather than storing N near-identical
+// rows.
 //
 // PII handling — strict invariants enforced by the extractor and by tests:
 //   - No customer names, emails, phones, or addresses on this row.
-//   - shippingCountryCode keeps only the ISO-2 country code.
-//   - shippingPostalPrefix keeps the FIRST 3 characters of the postal code,
-//     uppercased, with non-alphanumeric stripped. This is enough signal for
-//     postcode-based shipping rules (e.g. UK BT/IM/JE/GY) without uniquely
-//     identifying a household.
+//   - Launch does not request optional address fields from Shopify. If address
+//     data is ever supplied through an explicitly approved path,
+//     shippingCountryCode keeps only ISO-2 country and shippingPostalPrefix
+//     keeps only the FIRST 3 postal-code characters.
 //   - customerTagSignature is a sorted-comma-joined list of tags. Tags are
 //     merchant-controlled labels — any tag containing characters typical of
 //     PII (whitespace + email syntax) is dropped before storage.
@@ -209,17 +208,18 @@ model CartFixture {
   // Comma-joined sorted customer tags, or empty string if no tags / guest.
   // Limited to a normalized set of tag names (no whitespace, no email-like).
   customerTagSignature String           @default("")
-  // ISO-2 country code from the shipping address, or null if no shipping.
+  // Nullable by default because launch does not request optional address fields.
+  // If explicitly approved later, stores only ISO-2 country code.
   shippingCountryCode  String?
-  // First 3 chars of postal code, normalized to uppercase alphanumeric. Null
-  // for digital orders or shops that ship without postcode.
+  // Nullable by default because launch does not request optional address fields.
+  // If explicitly approved later, stores only the first 3 postal-code chars.
   shippingPostalPrefix String?
   // ISO-4217 currency code on the cart at order time. Used to differentiate
   // market-pricing fixtures.
   presentmentCurrency  String
-  // Composite "market signature" — currently currency + country, but kept as a
-  // separate field so we can swap to Shopify Markets when 2026-04 ships an
-  // Order.market field (it does not today).
+  // Composite "market signature" — currency today, plus country only when
+  // address data is supplied through an explicitly approved path. Kept as a
+  // separate field so we can swap to Shopify Markets when Admin API exposes it.
   marketSignature      String           @default("")
   // Compact summary of discount codes / automatic discounts that applied to
   // the source order. Comma-joined sorted code list. Empty for orders with

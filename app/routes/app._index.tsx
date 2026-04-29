@@ -175,7 +175,7 @@ export default function Index() {
       number: 2,
       title: "Generate cart fixtures",
       description:
-        "Pull the last 60 days of orders and build a deduped library of representative carts. PII is stripped — only ISO-2 country + 3-char postal prefix are kept.",
+        "Pull the last 60 days of orders and build a deduped library of representative carts. PII is stripped; optional name, email, phone, and address fields are not requested.",
       status: data.counts.fixtures > 0 ? "done" : "todo",
       stateHint:
         data.counts.fixtures > 0

@@ -9,8 +9,10 @@
  *     (MoneyBag); flat `Money` scalars are deprecated.
  *   - `shippingLines` is a connection in 2026-04 (was a flat list in older
  *     versions).
- *   - There is no `Order.market` field in 2026-04; we derive market from
- *     presentment currency + shipping country.
+ *   - There is no `Order.market` field in 2026-04. Launch deliberately avoids
+ *     `shippingAddress` because Shopify treats zip/address fields as Level 2
+ *     protected customer data; market signatures therefore use currency only
+ *     unless address access is explicitly approved in a later release.
  *
  * Rate limit strategy: Plus stores get an elevated bucket but we don't assume
  * it. Between pages we observe Shopify's `extensions.cost.throttleStatus` —
@@ -60,10 +62,6 @@ export const ORDERS_PAGE_QUERY = /* GraphQL */ `
           customer {
             id
             tags
-          }
-          shippingAddress {
-            countryCode
-            zip
           }
           lineItems(first: 50) {
             edges {
