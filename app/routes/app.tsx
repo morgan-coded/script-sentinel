@@ -27,6 +27,7 @@ export default function App() {
         <Link to="/app/scripts">Scripts</Link>
         <Link to="/app/fixtures">Fixtures</Link>
         <Link to="/app/audit">Audit</Link>
+        <Link to="/app/functions">Functions</Link>
       </NavMenu>
       <Outlet />
     </AppProvider>
