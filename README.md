@@ -62,9 +62,53 @@ Two scope notes worth keeping in the file rather than buried in code:
   if not. `read_script_tags` is an unrelated storefront API — intentionally not
   enabled.
 
+## Slice 2 status — Script discovery + classification
+
+**What works in this slice**
+
+- **Verified Shopify API surface (2026-04):** the legacy Script Editor scripts
+  are NOT exposed via Admin GraphQL or REST in 2026-04. There is no `Script`
+  object, no `/scripts.json` endpoint, and no `read_scripts` scope. Shopify's
+  only documented migration discovery surface is the in-admin Customizations
+  report. Confirmed against `shopify.dev/docs/api/admin-graphql/2026-04`,
+  `shopify.dev/docs/api/admin-rest/2026-04`, and the official Scripts
+  deprecation changelog. Slice 2 therefore ships **merchant-paste as the
+  primary intake** — no scope changes from Slice 1.
+- Embedded `Scripts` route at `/app/scripts` with two tabs (Active /
+  Archived), a paste form, and an inventory listing. Each list item shows
+  the title, type (line item / shipping / payment / unknown), automatic
+  classification badge, and an "Updated" date. Low-confidence
+  auto-classifications surface a "Needs review" pill.
+- Script detail route at `/app/scripts/:id` rendering the Ruby source as
+  plain text inside a `<pre>` tag (React's text-content escaping handles
+  any embedded HTML — never `dangerouslySetInnerHTML`). The detail view
+  also exposes the auto-classification signals, a manual override
+  (`Discount Logic` / `Shipping Rule` / `Payment Customization` /
+  `Market Pricing` / `B2B Logic` / `Other`), an optional override reason,
+  and archive/unarchive/delete actions.
+- Heuristic classifier in `app/lib/classifier/script-classifier.ts`:
+  pure function, 6 categories, weighted regex bundles, deterministic. Pure
+  text inspection — never evaluates Ruby. The roadmap's "≥80% accuracy on a
+  hand-curated test set of ≥20 representative scripts" is enforced by a
+  hard-fail test against a 22-sample corpus (`script-samples.ts`).
+- Manual reclassification overrides persist in `ScriptClassification` and
+  survive subsequent auto-classifier reruns. Override + reason + timestamp
+  all roundtrip via Prisma.
+- Persistence test (`test/scripts.persistence.test.ts`) exercises the real
+  schema end-to-end: paste → classify → list → override → archive → delete
+  with cascade.
+- Same Plus-only gate from Slice 1 is enforced on every load AND every
+  action in the scripts routes — no forged form-post can drop data on a
+  non-Plus shop.
+- Nav link + dashboard "Step 1 — Inventory your scripts" CTA wired.
+
+**Scopes (unchanged)**
+
+`read_orders, read_products, read_discounts, read_locations, read_shipping`.
+No new scopes were needed because Shopify exposes no script-discovery API.
+
 **What this slice deliberately does NOT include**
 
-- Script discovery, classification, or source viewing (Slice 2).
 - Cart-fixture generation (Slice 3).
 - Audit risk-scoring or PDF generation (Slice 4).
 - Functions output capture (Slice 5).

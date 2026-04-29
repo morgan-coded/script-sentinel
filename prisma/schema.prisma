@@ -55,6 +55,7 @@ model Shop {
   lastSeenAt        DateTime  @default(now())
   uninstalledAt     DateTime?
   charges           Charge[]
+  discoveredScripts DiscoveredScript[]
 }
 
 // ---------------------------------------------------------------------------
@@ -87,4 +88,76 @@ model Charge {
 
   @@index([shopDomain, status])
   @@index([planKey])
+}
+
+// ---------------------------------------------------------------------------
+// DiscoveredScript — one row per Shopify Script the merchant has surfaced to
+// us. Slice 2 verified 2026-04-29 that Shopify's Admin API in 2026-04 does NOT
+// expose legacy Script Editor scripts (no GraphQL `Script` object, no REST
+// /scripts.json endpoint, no `read_scripts` scope). The deprecation migration
+// path Shopify provides is an in-admin Customizations report — not an API.
+//
+// So Slice 2 ships merchant-paste as the primary intake. The schema also leaves
+// room for a future Admin API path:
+//   - `origin` differentiates "paste" vs "admin_api"
+//   - `externalId` + `shopifyUpdatedAt` are populated only when origin = admin_api
+//
+// Source code is treated as untrusted text. Never render as HTML.
+// ---------------------------------------------------------------------------
+model DiscoveredScript {
+  id                String    @id @default(cuid())
+  shopDomain        String
+  shop              Shop      @relation(fields: [shopDomain], references: [myshopifyDomain], onDelete: Cascade)
+  // Free-form merchant title (paste) or Shopify-supplied title (admin_api).
+  title             String
+  // Script Editor "type" — one of: line_item | shipping | payment | unknown.
+  // Stored as String for SQLite compat; the union is enforced at the call site
+  // (see app/lib/shopify/scripts.ts).
+  scriptType        String    @default("unknown")
+  // Raw Ruby source. Stored verbatim, treated as untrusted text on display.
+  source            String
+  // True for active/published scripts the merchant says are running today.
+  // The active/archived split drives the two-tab UI in app/scripts.
+  isActive          Boolean   @default(true)
+  archivedAt        DateTime?
+  // "paste" today; "admin_api" reserved for a future Shopify-provided endpoint.
+  origin            String    @default("paste")
+  // Shopify's identifier when origin = admin_api. Null for paste.
+  externalId        String?
+  // Last modified timestamp from Shopify when origin = admin_api. Null for paste.
+  shopifyUpdatedAt  DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  classification    ScriptClassification?
+
+  @@index([shopDomain, isActive])
+  @@index([shopDomain, scriptType])
+}
+
+// ---------------------------------------------------------------------------
+// ScriptClassification — heuristic classifier output PLUS optional manual
+// override. Stored 1:1 with DiscoveredScript so the override survives even if
+// the auto-classifier is re-run with new heuristics in a later slice.
+//
+// The effective category at read time is overrideCategory ?? autoCategory.
+// Both fields use the ClassificationCategory union (see classifier module).
+// ---------------------------------------------------------------------------
+model ScriptClassification {
+  id                String           @id @default(cuid())
+  scriptId          String           @unique
+  script            DiscoveredScript @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+  // Heuristic classifier output. Always populated.
+  autoCategory      String
+  // 0.0 – 1.0 confidence score from the heuristic. Used to flag low-confidence
+  // results in the UI ("Other / Needs Review").
+  autoConfidence    Float
+  // JSON array of pattern names the classifier matched. Lets the detail view
+  // explain *why* this category was picked, and helps debug regressions when
+  // we tweak the heuristics.
+  autoSignals       String           @default("[]")
+  // Merchant override. Null until the user explicitly reclassifies.
+  overrideCategory  String?
+  overrideReason    String?
+  overrideUpdatedAt DateTime?
+  updatedAt         DateTime         @updatedAt
 }

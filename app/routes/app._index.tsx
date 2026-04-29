@@ -101,13 +101,30 @@ export default function Index() {
 
                 <BlockStack gap="200">
                   <Text as="h3" variant="headingMd">
-                    Migration audit
+                    Step 1 — Inventory your scripts
+                  </Text>
+                  <Text as="p" variant="bodyMd">
+                    Paste the Ruby source from each Shopify Script in your store.
+                    Script Sentinel classifies each one (discount, shipping,
+                    payment, market pricing, B2B) so we can target the audit at
+                    the right migration risks.
+                  </Text>
+                  <InlineStack gap="200" blockAlign="center">
+                    <Button variant="primary" url="/app/scripts">
+                      Open script inventory
+                    </Button>
+                  </InlineStack>
+                </BlockStack>
+
+                <BlockStack gap="200">
+                  <Text as="h3" variant="headingMd">
+                    Step 2 — Migration audit
                   </Text>
                   <Text as="p" variant="bodyMd">
                     {data.auditProduct.description}
                   </Text>
                   <InlineStack gap="200" blockAlign="center">
-                    <Button variant="primary" url="/app/audit" disabled>
+                    <Button variant="secondary" url="/app/audit" disabled>
                       Run migration audit — {data.auditProduct.priceLabel}
                     </Button>
                     <Text as="span" variant="bodySm" tone="subdued">
@@ -150,16 +167,15 @@ export default function Index() {
               <Card>
                 <BlockStack gap="200">
                   <Text as="h3" variant="headingMd">
-                    Slice 1 status
+                    Build status
                   </Text>
                   <List>
-                    <List.Item>Embedded app shell installed</List.Item>
-                    <List.Item>Plus plan detected and gated</List.Item>
-                    <List.Item>Managed Billing catalog wired (4 SKUs)</List.Item>
-                    <List.Item>Uninstall webhook clears session + marks shop</List.Item>
+                    <List.Item>Slice 1 — App shell + Managed Billing</List.Item>
+                    <List.Item>Slice 2 — Script discovery (paste-based)</List.Item>
                   </List>
                   <Text as="p" variant="bodySm" tone="subdued">
-                    Script discovery, fixtures, audit PDF, and diff engine ship in Slices 2–6.
+                    Cart fixtures (Slice 3), audit PDF (Slice 4), and diff engine
+                    (Slice 6) are next.
                   </Text>
                 </BlockStack>
               </Card>
