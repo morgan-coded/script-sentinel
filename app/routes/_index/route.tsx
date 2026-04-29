@@ -1,10 +1,19 @@
-import type { LoaderFunctionArgs } from "@remix-run/node";
+import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
 import { redirect } from "@remix-run/node";
 import { Form, useLoaderData } from "@remix-run/react";
 
 import { login } from "../../shopify.server";
 
 import styles from "./styles.module.css";
+
+export const meta: MetaFunction = () => [
+  { title: "Script Sentinel — Shopify Scripts to Functions parity testing" },
+  {
+    name: "description",
+    content:
+      "Read-only parity and regression testing for Shopify Plus teams migrating legacy Scripts to Shopify Functions.",
+  },
+];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
@@ -20,7 +29,7 @@ export default function App() {
   const { showForm } = useLoaderData<typeof loader>();
 
   return (
-    <div className={styles.index}>
+    <main className={styles.index}>
       <div className={styles.content}>
         <h1 className={styles.heading}>Script Sentinel</h1>
         <p className={styles.text}>
@@ -57,6 +66,6 @@ export default function App() {
           </li>
         </ul>
       </div>
-    </div>
+    </main>
   );
 }
