@@ -118,7 +118,24 @@ export default function Index() {
 
                 <BlockStack gap="200">
                   <Text as="h3" variant="headingMd">
-                    Step 2 — Migration audit
+                    Step 2 — Generate cart fixtures
+                  </Text>
+                  <Text as="p" variant="bodyMd">
+                    Build a deduplicated library of representative carts from
+                    your last 60 days of orders. Customer PII is stripped
+                    before storage; only country code + 3-character postal
+                    prefix are kept.
+                  </Text>
+                  <InlineStack gap="200" blockAlign="center">
+                    <Button variant="primary" url="/app/fixtures">
+                      Open fixture library
+                    </Button>
+                  </InlineStack>
+                </BlockStack>
+
+                <BlockStack gap="200">
+                  <Text as="h3" variant="headingMd">
+                    Step 3 — Migration audit
                   </Text>
                   <Text as="p" variant="bodyMd">
                     {data.auditProduct.description}
@@ -172,10 +189,10 @@ export default function Index() {
                   <List>
                     <List.Item>Slice 1 — App shell + Managed Billing</List.Item>
                     <List.Item>Slice 2 — Script discovery (paste-based)</List.Item>
+                    <List.Item>Slice 3 — Cart fixture generation</List.Item>
                   </List>
                   <Text as="p" variant="bodySm" tone="subdued">
-                    Cart fixtures (Slice 3), audit PDF (Slice 4), and diff engine
-                    (Slice 6) are next.
+                    Audit PDF (Slice 4) and diff engine (Slice 6) are next.
                   </Text>
                 </BlockStack>
               </Card>

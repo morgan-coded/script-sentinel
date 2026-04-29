@@ -107,9 +107,67 @@ Two scope notes worth keeping in the file rather than buried in code:
 `read_orders, read_products, read_discounts, read_locations, read_shipping`.
 No new scopes were needed because Shopify exposes no script-discovery API.
 
+## Slice 3 status — Cart fixture generation
+
+**What works in this slice**
+
+- **Verified 2026-04 Order API shape**: orders connection, cursor pagination,
+  query-string filter (`processed_at:>=YYYY-MM-DD`), MoneyBag `*Set` shape on
+  line items, `shippingLines` is a connection, `Order.market` does NOT exist
+  (we derive market from `presentmentCurrencyCode` + `shippingAddress.countryCode`).
+  Cited inline in `app/lib/shopify/orders.ts`.
+- **Order history window — 60 days, not 90.** `read_orders` exposes only the
+  last 60 days; the documented `read_all_orders` scope (which would lift the
+  window to 90+ days) requires Shopify Partner approval. Slice 3 ships at 60
+  days as a graceful fallback. Lifting to 90 days is a config flip plus a
+  scope addition once Partner review approves it.
+- Read-only paginated orders client in `app/lib/shopify/orders.ts` with
+  cursor-based forward iteration, query-cost-aware backoff (sleeps when
+  `extensions.cost.throttleStatus.currentlyAvailable` drops below 200), and a
+  hard `MAX_ORDERS_PER_RUN = 5000` ceiling.
+- PII scrubber in `app/lib/fixtures/pii.ts`: drops names, emails, phones, and
+  full addresses; keeps only ISO-2 country code and the **first 3 characters
+  of the postal code**. Customer tags pass through a normaliser that lowercases,
+  collapses punctuation, and rejects PII-shaped tags.
+- Extractor (`extractor.ts`) and dedup (`dedup.ts`) modules — pure, no I/O —
+  turning `Order` rows into `(CartFixture, FixtureBaseline)` pairs and
+  collapsing same-composition + same-tags + same-country + same-discount
+  orders into a single fixture row. Quantity diversity is preserved via
+  `quantitySamples`.
+- Idempotent persistence (`store.server.ts`): re-running "Generate fixtures"
+  merges new orders into existing rows by SHA-256 signature; observation
+  counts and quantity samples accumulate, the freshest order wins the
+  baseline. No duplicate rows ever.
+- Embedded `Cart fixtures` route at `/app/fixtures` with a Generate action,
+  a Clear action (with confirm), and a card listing per fixture: product mix,
+  market badges, observation count, captured discount/shipping/payment
+  baseline.
+- Plus-only gate enforced on every loader and action.
+- Nav link + dashboard "Step 2 — Generate cart fixtures" CTA wired.
+- Tests: 96 total across 10 files. PII scrubber 18, orders client 7,
+  extractor 13, dedup 10, fixtures persistence 5 (incl. PII tripwire that
+  serialises every persisted row and asserts no PII-shaped substring slipped
+  through).
+
+**Scopes (unchanged)**
+
+`read_orders, read_products, read_discounts, read_locations, read_shipping`.
+**No new scopes added.** Specifically, `read_all_orders` was NOT added — that
+scope requires Partner review and is a separate workstream gated on submitting
+the app for App Store approval.
+
+**Privacy notes for App Store review (Slice 9)**
+
+- We never persist customer names, emails, phones, or full addresses.
+- Stored fields per fixture: ISO-2 country code; first 3 characters of postal
+  code, uppercased; merchant-controlled customer tags after a normaliser drops
+  any PII-shaped tags; line items (variant id / product id / sku / title /
+  qty / unit price); discount code values; aggregate cart totals.
+- The persistence test asserts no PII slips through, on every persisted row,
+  every run.
+
 **What this slice deliberately does NOT include**
 
-- Cart-fixture generation (Slice 3).
 - Audit risk-scoring or PDF generation (Slice 4).
 - Functions output capture (Slice 5).
 - Diff engine (Slice 6).

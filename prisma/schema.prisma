@@ -56,6 +56,7 @@ model Shop {
   uninstalledAt     DateTime?
   charges           Charge[]
   discoveredScripts DiscoveredScript[]
+  cartFixtures      CartFixture[]
 }
 
 // ---------------------------------------------------------------------------
@@ -160,4 +161,119 @@ model ScriptClassification {
   overrideReason    String?
   overrideUpdatedAt DateTime?
   updatedAt         DateTime         @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// CartFixture — a deduplicated representative cart drawn from the merchant's
+// historical orders. One row per unique combination of (line-item composition
+// + customer-tag set + shipping country + market signature + applied
+// discounts). Same composition with different quantities collapses into a
+// single fixture; we preserve the quantity diversity in `quantitySamples`
+// rather than storing N near-identical rows.
+//
+// PII handling — strict invariants enforced by the extractor and by tests:
+//   - No customer names, emails, phones, or addresses on this row.
+//   - shippingCountryCode keeps only the ISO-2 country code.
+//   - shippingPostalPrefix keeps the FIRST 3 characters of the postal code,
+//     uppercased, with non-alphanumeric stripped. This is enough signal for
+//     postcode-based shipping rules (e.g. UK BT/IM/JE/GY) without uniquely
+//     identifying a household.
+//   - customerTagSignature is a sorted-comma-joined list of tags. Tags are
+//     merchant-controlled labels — any tag containing characters typical of
+//     PII (whitespace + email syntax) is dropped before storage.
+//
+// Determinism: `signature` is the SHA-256 of the canonical (sorted, lowercased,
+// quantity-normalized) composition string. Any two orders that produce the same
+// signature collapse into the same fixture row on re-runs. This is what makes
+// "click Generate fixtures" idempotent.
+// ---------------------------------------------------------------------------
+model CartFixture {
+  id                    String     @id @default(cuid())
+  shopDomain            String
+  shop                  Shop       @relation(fields: [shopDomain], references: [myshopifyDomain], onDelete: Cascade)
+  // Deterministic dedup signature. SHA-256 hex digest. Uniqueness is per-shop
+  // because a fixture in shop A is independent of an identical-looking
+  // fixture in shop B.
+  signature             String
+  // JSON array of { variantId, productId, sku, quantity, unitPrice }. Stored
+  // as String for SQLite; parsed back to a typed shape at the application
+  // layer. Use the LineItemSnapshot type from app/lib/fixtures/extractor.ts.
+  lineItems             String
+  // Comma-joined sorted customer tags, or empty string if no tags / guest.
+  // Limited to a normalized set of tag names (no whitespace, no email-like).
+  customerTagSignature  String     @default("")
+  // ISO-2 country code from the shipping address, or null if no shipping.
+  shippingCountryCode   String?
+  // First 3 chars of postal code, normalized to uppercase alphanumeric. Null
+  // for digital orders or shops that ship without postcode.
+  shippingPostalPrefix  String?
+  // ISO-4217 currency code on the cart at order time. Used to differentiate
+  // market-pricing fixtures.
+  presentmentCurrency   String
+  // Composite "market signature" — currently currency + country, but kept as a
+  // separate field so we can swap to Shopify Markets when 2026-04 ships an
+  // Order.market field (it does not today).
+  marketSignature       String     @default("")
+  // Compact summary of discount codes / automatic discounts that applied to
+  // the source order. Comma-joined sorted code list. Empty for orders with
+  // no captured discounts. Used in dedup so fixtures with-and-without a code
+  // are treated as different baselines.
+  discountSignature     String     @default("")
+  // Quantity diversity — JSON array of distinct total-quantity counts seen
+  // across orders that share the same line-item composition. e.g. [1, 2, 5]
+  // means we observed cart-quantity-totals of 1, 2, and 5 across the source
+  // orders that collapsed into this fixture.
+  quantitySamples       String     @default("[]")
+  // How many distinct historical orders folded into this fixture row. Used in
+  // the UI to show "12 orders matched this fixture".
+  observationCount      Int        @default(1)
+  // Source bookkeeping: timestamps of the first and last order that
+  // contributed to this fixture. Both are ISO instants on the source order.
+  firstObservedAt       DateTime
+  lastObservedAt        DateTime
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
+  baseline              FixtureBaseline?
+
+  @@unique([shopDomain, signature])
+  @@index([shopDomain, lastObservedAt])
+  @@index([shopDomain, presentmentCurrency])
+}
+
+// ---------------------------------------------------------------------------
+// FixtureBaseline — the historical outcome we observed in the order data:
+// what discount applied, what shipping rate was charged, what payment method
+// the customer used. This is the "ground truth" the Slice 6 diff engine will
+// compare Function output against.
+//
+// Stored 1:1 with CartFixture so we can re-run the extractor without losing
+// the captured baseline.
+// ---------------------------------------------------------------------------
+model FixtureBaseline {
+  id                          String      @id @default(cuid())
+  fixtureId                   String      @unique
+  fixture                     CartFixture @relation(fields: [fixtureId], references: [id], onDelete: Cascade)
+  // Observed discount outcome on the source order(s). Amounts are in major
+  // currency units (e.g. 12.50 dollars), keyed to presentmentCurrency on the
+  // parent fixture.
+  totalDiscountAmount         Float       @default(0)
+  // JSON array of { code?, type, value, allocationMethod }. Captured per
+  // discount application — see DiscountSnapshot in app/lib/fixtures/extractor.ts.
+  discountApplications        String      @default("[]")
+  // The shipping rate the customer ultimately picked, by code/title.
+  shippingRateCode            String?
+  shippingRateTitle           String?
+  shippingRateAmount          Float?
+  // Payment gateway names the order used. Not enough to verify availability
+  // (Shopify only stores the chosen one in OrderTransaction), but useful as a
+  // hint for Slice 6 payment-customization parity checks.
+  paymentGatewayNames         String      @default("[]")
+  // Total price of the cart on the source order, in presentment currency.
+  // Used for sanity checks in the diff engine.
+  cartTotal                   Float       @default(0)
+  // Snapshot timestamp — the processedAt of the most recent order that
+  // contributed to this baseline. Lets the UI show "baseline as of …".
+  capturedAt                  DateTime
+  createdAt                   DateTime    @default(now())
+  updatedAt                   DateTime    @updatedAt
 }
