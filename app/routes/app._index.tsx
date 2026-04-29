@@ -141,12 +141,9 @@ export default function Index() {
                     {data.auditProduct.description}
                   </Text>
                   <InlineStack gap="200" blockAlign="center">
-                    <Button variant="secondary" url="/app/audit" disabled>
+                    <Button variant="primary" url="/app/audit">
                       Run migration audit — {data.auditProduct.priceLabel}
                     </Button>
-                    <Text as="span" variant="bodySm" tone="subdued">
-                      Slice 4 wires the audit paywall and PDF generation.
-                    </Text>
                   </InlineStack>
                 </BlockStack>
               </BlockStack>
@@ -190,9 +187,10 @@ export default function Index() {
                     <List.Item>Slice 1 — App shell + Managed Billing</List.Item>
                     <List.Item>Slice 2 — Script discovery (paste-based)</List.Item>
                     <List.Item>Slice 3 — Cart fixture generation</List.Item>
+                    <List.Item>Slice 4 — Migration Risk Audit PDF</List.Item>
                   </List>
                   <Text as="p" variant="bodySm" tone="subdued">
-                    Audit PDF (Slice 4) and diff engine (Slice 6) are next.
+                    Functions capture (Slice 5) and diff engine (Slice 6) are next.
                   </Text>
                 </BlockStack>
               </Card>

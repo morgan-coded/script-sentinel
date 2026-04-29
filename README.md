@@ -166,9 +166,52 @@ the app for App Store approval.
 - The persistence test asserts no PII slips through, on every persisted row,
   every run.
 
+## Slice 4 status — Migration Risk Audit (the $199 / $499 cash gate)
+
+**What works in this slice**
+
+- `/app/audit` route with three states driven off the merchant's
+  Managed-Billing purchase status: **non-Plus gate** → **paywall** (two SKUs:
+  `MIGRATION_RISK_AUDIT` $199 single-family, `MULTI_SCRIPT_AUDIT` $499
+  all-families) → **ready** (Generate / Download). Plus-only gate enforced
+  on every loader and action.
+- Charge wrapper in `app/lib/billing/charge.server.ts` — narrow surface
+  around `billing.request` / `billing.check` that:
+    - Refuses to call `request()` with non-audit plan keys (typo guard).
+    - Treats only `ACTIVE` / `ACCEPTED` Shopify purchase statuses as "paid"
+      (`PENDING` / `DECLINED` filtered out).
+    - Carries `isTest` through, so partner-development stores can run the
+      flow end-to-end with fake charges.
+- Risk scorer in `app/lib/audit/risk-scorer.ts` — pure, deterministic
+  function from `(scripts, fixtures) → AuditSnapshot`. Grades each script
+  high / medium / low / unknown using the classifier output + source
+  pattern hits + complexity score + fixture context. Conservative on
+  unknowns: low-confidence classifications and fixture-empty shops fall back
+  to `unknown` rather than producing false-confident "low" gradings.
+- React-PDF deliverable in `app/lib/pdf/audit-report.tsx` covering all five
+  required sections: executive summary, per-script breakdown, fixture-by-
+  fixture risk table, ranked migration checklist, open questions for the
+  merchant/developer. Greyscale-readable risk badges. Server-rendered to a
+  `Buffer` on demand.
+- Prisma `AuditPurchase` + `AuditReport` (additive, migration
+  `slice4_audit_report`). The structured `AuditSnapshot` is the source of
+  truth — PDFs are re-rendered on every download for the 12-month
+  re-download window (no fragile binary blobs in SQLite).
+- Tests: 130 total across 13 files. Risk scorer 15 (golden-cases for each
+  category + grading edge cases). PDF 5 (JSX-tree snapshot, section
+  ordering, header content, XSS/HTML-escape contract, empty state). Charge
+  flow 9 (acts only on ACTIVE/ACCEPTED, refuses non-audit SKUs, propagates
+  `billing.request` redirect).
+- Dashboard CTA promoted from disabled placeholder to live `Run migration
+  audit` button. Nav link added.
+
+**Scopes (unchanged)**
+
+`read_orders, read_products, read_discounts, read_locations, read_shipping`.
+Managed Billing is a separate plane — no scope changes for the audit charge.
+
 **What this slice deliberately does NOT include**
 
-- Audit risk-scoring or PDF generation (Slice 4).
 - Functions output capture (Slice 5).
 - Diff engine (Slice 6).
 - Nightly regression cron, drift alerts (Slice 7).
