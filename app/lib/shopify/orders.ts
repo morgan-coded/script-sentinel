@@ -251,6 +251,19 @@ export interface FetchOrdersResult {
 
 const DEFAULT_SLEEP_THRESHOLD = 200;
 const DEFAULT_SLEEP_MS = 1_000;
+const ORDER_ACCESS_DENIED_RE = /not approved to access the Order object|protected-customer-data|access denied|read_orders/i;
+
+/**
+ * Shopify blocks Order reads until the app is approved for protected customer
+ * data. Make that condition typed so routes can render a remediation message
+ * instead of a generic Remix application error.
+ */
+export class OrdersAccessDeniedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "OrdersAccessDeniedError";
+  }
+}
 
 function defaultSleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -294,14 +307,27 @@ export async function fetchOrdersWindow(
   let truncated = false;
 
   while (orders.length < maxOrders) {
-    const response = await admin.graphql(ORDERS_PAGE_QUERY, {
-      variables: { cursor, first: pageSize, query: queryStr },
-    });
+    let response: Awaited<ReturnType<AdminGraphqlClient["graphql"]>>;
+    try {
+      response = await admin.graphql(ORDERS_PAGE_QUERY, {
+        variables: { cursor, first: pageSize, query: queryStr },
+      });
+    } catch (err) {
+      const message = messageFromUnknown(err);
+      if (isOrdersAccessDeniedMessage(message)) {
+        throw new OrdersAccessDeniedError(message);
+      }
+      throw err;
+    }
     const body = (await response.json()) as OrdersPageResponse;
 
     if (body.errors && body.errors.length > 0) {
+      const message = body.errors.map((e) => e.message).join("; ");
+      if (isOrdersAccessDeniedMessage(message)) {
+        throw new OrdersAccessDeniedError(message);
+      }
       throw new Error(
-        `orders fetch failed: ${body.errors.map((e) => e.message).join("; ")}`,
+        `orders fetch failed: ${message}`,
       );
     }
 
@@ -336,4 +362,18 @@ export async function fetchOrdersWindow(
 
 function clamp(value: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, value));
+}
+
+function isOrdersAccessDeniedMessage(message: string): boolean {
+  return ORDER_ACCESS_DENIED_RE.test(message);
+}
+
+function messageFromUnknown(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === "string") return err;
+  if (err && typeof err === "object" && "message" in err) {
+    const message = (err as { message?: unknown }).message;
+    if (typeof message === "string") return message;
+  }
+  return String(err);
 }

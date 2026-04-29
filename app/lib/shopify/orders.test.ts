@@ -3,6 +3,7 @@ import {
   buildOrdersQuery,
   DEFAULT_LOOKBACK_DAYS,
   fetchOrdersWindow,
+  OrdersAccessDeniedError,
   type AdminGraphqlClient,
   type RawOrder,
 } from "./orders";
@@ -117,6 +118,35 @@ describe("fetchOrdersWindow", () => {
     };
     await expect(fetchOrdersWindow(admin, { sleep: async () => {} })).rejects.toThrow(
       /read_orders missing/,
+    );
+  });
+
+  it("raises a typed error when Shopify blocks protected Order access", async () => {
+    const admin: AdminGraphqlClient = {
+      graphql: async () => ({
+        json: async () => ({
+          errors: [
+            {
+              message:
+                "This app is not approved to access the Order object. See https://shopify.dev/docs/apps/launch/protected-customer-data for more details.",
+            },
+          ],
+        }),
+      }),
+    };
+    await expect(fetchOrdersWindow(admin, { sleep: async () => {} })).rejects.toBeInstanceOf(
+      OrdersAccessDeniedError,
+    );
+  });
+
+  it("normalizes thrown Shopify GraphQL order-access errors", async () => {
+    const admin: AdminGraphqlClient = {
+      graphql: async () => {
+        throw new Error("This app is not approved to access the Order object.");
+      },
+    };
+    await expect(fetchOrdersWindow(admin, { sleep: async () => {} })).rejects.toBeInstanceOf(
+      OrdersAccessDeniedError,
     );
   });
 

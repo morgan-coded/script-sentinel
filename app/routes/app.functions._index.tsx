@@ -35,7 +35,10 @@ import {
   upsertDiscoveredFunctions,
   type DiscoveredFunctionRecord,
 } from "../lib/functions/store.server";
-import { fetchOrdersWindow } from "../lib/shopify/orders";
+import {
+  fetchOrdersWindow,
+  OrdersAccessDeniedError,
+} from "../lib/shopify/orders";
 import { NON_PLUS_GATE_MESSAGE } from "../lib/shopify/plan-copy";
 
 /**
@@ -195,7 +198,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         },
       };
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message =
+        err instanceof OrdersAccessDeniedError
+          ? "Shopify blocked order access because this app is not yet approved for protected Order data. Complete Protected customer data approval in the Shopify Partner Dashboard, then reinstall or retry capture."
+          : err instanceof Error
+            ? err.message
+            : String(err);
       await finishCaptureRun(run.id, {
         status: "failed",
         ordersExamined: 0,
@@ -241,11 +249,13 @@ export default function FunctionsIndex() {
   // Slice 7 — surface an access-denied explainer banner above the action
   // bar when the most recent discover attempt was rejected on scope grounds.
   // Friendlier than burying the error in a toast.
+  const actionError =
+    actionData && "error" in actionData && typeof actionData.error === "string"
+      ? actionData.error
+      : null;
   const accessDenied =
-    actionData &&
-    "error" in actionData &&
-    typeof actionData.error === "string" &&
-    actionData.error.toLowerCase().includes("scope");
+    actionError !== null &&
+    /scope|protected order|protected customer|order access/i.test(actionError);
 
   if (!data.isPlus) {
     return (
@@ -276,15 +286,11 @@ export default function FunctionsIndex() {
           {accessDenied ? (
             <Box paddingBlockEnd="400">
               <Banner
-                title="Functions discovery requires additional permissions"
+                title="Additional Shopify approval required"
                 tone="warning"
               >
                 <p>
-                  Shopify rejected the request to read your installed
-                  Functions. This usually means the app needs the{" "}
-                  <code>read_apps</code> scope, which we'll request on next
-                  install. Re-install the app from the Apps page, or contact
-                  support so we can extend the requested scopes for your shop.
+                  {actionError}
                 </p>
               </Banner>
             </Box>

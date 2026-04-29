@@ -1,6 +1,7 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
-import { Form, useLoaderData, useNavigation } from "@remix-run/react";
+import { Form, useActionData, useLoaderData, useNavigation } from "@remix-run/react";
 import {
+  Banner,
   Badge,
   BlockStack,
   Box,
@@ -12,13 +13,15 @@ import {
   Page,
   Text,
 } from "@shopify/polaris";
-import { TitleBar } from "@shopify/app-bridge-react";
+import { TitleBar, useAppBridge } from "@shopify/app-bridge-react";
+import { useEffect } from "react";
 import { authenticate } from "../shopify.server";
 import { fetchShopPlan } from "../lib/shopify/plan.server";
 import { upsertShopFromPlan } from "../lib/shopify/shop.server";
 import {
   DEFAULT_LOOKBACK_DAYS,
   fetchOrdersWindow,
+  OrdersAccessDeniedError,
 } from "../lib/shopify/orders";
 import { extractFixtures } from "../lib/fixtures/dedup";
 import {
@@ -145,8 +148,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   if (intent === "generate") {
     const start = Date.now();
-    const { orders, pagesFetched, throttleSleeps, truncated } =
-      await fetchOrdersWindow(admin, { lookbackDays: DEFAULT_LOOKBACK_DAYS });
+    let fetched: Awaited<ReturnType<typeof fetchOrdersWindow>>;
+    try {
+      fetched = await fetchOrdersWindow(admin, { lookbackDays: DEFAULT_LOOKBACK_DAYS });
+    } catch (err) {
+      if (err instanceof OrdersAccessDeniedError) {
+        return {
+          error:
+            "Shopify blocked order access because this app is not yet approved for protected Order data. Complete Protected customer data approval in the Shopify Partner Dashboard, then reinstall or retry fixtures.",
+        };
+      }
+      throw err;
+    }
+    const { orders, pagesFetched, throttleSleeps, truncated } = fetched;
     const { fixtures, stats } = extractFixtures(orders);
     const persisted = await upsertFixtures(session.shop, fixtures);
     return {
@@ -175,8 +189,33 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
 export default function FixturesIndex() {
   const data = useLoaderData<typeof loader>();
+  const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const submitting = navigation.state === "submitting";
+  const shopify = useAppBridge();
+  const actionError =
+    actionData && "error" in actionData && typeof actionData.error === "string"
+      ? actionData.error
+      : null;
+
+  useEffect(() => {
+    if (!actionData) return;
+    if ("ok" in actionData && actionData.ok === true) {
+      if (
+        "fixturesProduced" in actionData.summary &&
+        typeof actionData.summary.fixturesProduced === "number"
+      ) {
+        const produced = actionData.summary.fixturesProduced;
+        shopify.toast.show(
+          `Fixture generation complete — ${produced} fixture${produced === 1 ? "" : "s"} produced.`,
+        );
+      } else {
+        shopify.toast.show("Fixtures cleared.");
+      }
+    } else if (actionError) {
+      shopify.toast.show(actionError, { isError: true });
+    }
+  }, [actionData, actionError, shopify]);
 
   if (!data.isPlus) {
     return (
@@ -206,6 +245,11 @@ export default function FixturesIndex() {
           <Layout.Section>
             <Card>
               <BlockStack gap="300">
+                {actionError ? (
+                  <Banner title="Order access needs approval" tone="warning">
+                    <p>{actionError}</p>
+                  </Banner>
+                ) : null}
                 <Text as="h2" variant="headingMd">
                   Generate fixtures from order history
                 </Text>
