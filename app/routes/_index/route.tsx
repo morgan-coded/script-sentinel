@@ -22,9 +22,10 @@ export default function App() {
   return (
     <div className={styles.index}>
       <div className={styles.content}>
-        <h1 className={styles.heading}>A short heading about [your app]</h1>
+        <h1 className={styles.heading}>Script Sentinel</h1>
         <p className={styles.text}>
-          A tagline about [your app] that describes your value proposition.
+          Read-only parity testing for Shopify Plus teams migrating from
+          Scripts to Shopify Functions.
         </p>
         {showForm && (
           <Form className={styles.form} method="post" action="/auth/login">
@@ -40,16 +41,19 @@ export default function App() {
         )}
         <ul className={styles.list}>
           <li>
-            <strong>Product feature</strong>. Some detail about your feature and
-            its benefit to your customer.
+            <strong>Read-only by design</strong>. Uses read-only Shopify scopes
+            and never changes discounts, Scripts, Functions, or checkout
+            behavior.
           </li>
           <li>
-            <strong>Product feature</strong>. Some detail about your feature and
-            its benefit to your customer.
+            <strong>Regression evidence</strong>. Paste legacy Scripts,
+            generate 60-day cart fixtures, and compare captured Function
+            outputs before customers find drift.
           </li>
           <li>
-            <strong>Product feature</strong>. Some detail about your feature and
-            its benefit to your customer.
+            <strong>Launch-ready compliance</strong>. Privacy policy and
+            mandatory Shopify compliance webhooks are built in.{" "}
+            <a href="/legal/privacy.html">Privacy policy</a>.
           </li>
         </ul>
       </div>
