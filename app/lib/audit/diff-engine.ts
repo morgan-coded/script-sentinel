@@ -37,7 +37,27 @@
  */
 
 export type DriftSeverity = "critical" | "warning" | "info";
-export type DriftCategory = "discount" | "shipping" | "payment" | "totals";
+/**
+ * Drift categories. The first four are *behavioural* — they describe what
+ * changed (discount/shipping/payment/totals). The last two are *segment
+ * tags* added in Slice 8: they describe **who** is affected (B2B-tagged
+ * carts, non-default-market carts) so the regression dashboard can surface
+ * "this drift hit your B2B / EU carts" without needing a separate report.
+ *
+ * Segment tags piggy-back on the same `categories[]` array on each
+ * DriftResult. They never appear without at least one behavioural category
+ * — a fixture with no actual drift is still no drift, regardless of segment.
+ */
+export type DriftCategory =
+  | "discount"
+  | "shipping"
+  | "payment"
+  | "totals"
+  | "b2b"
+  | "market";
+
+/** Segment subset — what `computeSegments` may emit. */
+export type DriftSegment = Extract<DriftCategory, "b2b" | "market">;
 
 export interface DriftSummary {
   totalDiscount: number;
@@ -84,6 +104,13 @@ export interface DiffBaselineInput {
   paymentGatewayNames: string[];
   cartTotal: number;
   presentmentCurrency: string;
+  /**
+   * Slice 8 — optional segment context. When supplied, `runDiff` appends
+   * the corresponding segment tag (`"b2b"` and/or `"market"`) to any
+   * emitted DriftResult.categories. Absent → behaves like Slice 6.
+   */
+  customerTags?: ReadonlyArray<string>;
+  shippingCountryCode?: string | null;
 }
 
 export interface DiffOutputInput {
@@ -117,6 +144,35 @@ const SEVERITY_ORDER: Record<DriftSeverity, number> = {
   warning: 2,
   critical: 3,
 };
+
+/**
+ * Slice 8 — segment tag derivation.
+ *
+ * `b2b`: any non-empty customerTags list on the baseline. The fixture
+ *   extractor only retains tags after PII scrubbing (email-shaped /
+ *   whitespace tags are dropped), so a non-empty list is a real merchant-
+ *   set tag and a strong B2B signal regardless of the literal value.
+ *
+ * `market`: presentmentCurrency != "USD" OR shippingCountryCode is set
+ *   and != "US". The Slice 1 product premise is US/USD-default; any
+ *   deviation is a market segment worth tagging.
+ *
+ * Pure — no I/O, deterministic, exported so callers (and tests) can use
+ * the same rule.
+ */
+export function computeSegments(input: {
+  customerTags?: ReadonlyArray<string>;
+  presentmentCurrency: string;
+  shippingCountryCode?: string | null;
+}): DriftSegment[] {
+  const out: DriftSegment[] = [];
+  if (input.customerTags && input.customerTags.length > 0) out.push("b2b");
+  const isNonDefaultMarket =
+    input.presentmentCurrency !== "USD" ||
+    (input.shippingCountryCode != null && input.shippingCountryCode !== "US");
+  if (isNonDefaultMarket) out.push("market");
+  return out;
+}
 
 function maxSeverity(a: DriftSeverity, b: DriftSeverity): DriftSeverity {
   return SEVERITY_ORDER[a] >= SEVERITY_ORDER[b] ? a : b;
@@ -359,16 +415,19 @@ export function runDiff(input: DiffEngineInput): DiffEngineResult {
     const summary = summarise(baseline, output);
     // Compose a unified message + recommendation by joining the per-category
     // text. Keep deterministic ordering (discount, shipping, payment,
-    // totals) so test snapshots are stable.
+    // totals) so test snapshots are stable. Segment tags follow the
+    // behavioural categories deterministically (b2b before market).
     const ordered: DriftCategory[] = ["discount", "shipping", "payment", "totals"];
     const orderedDrifts = ordered
       .map((cat) => drifts.find((d) => d.category === cat))
       .filter((d): d is CategoryDrift => Boolean(d));
 
+    const segments = computeSegments(baseline);
+
     results.push({
       fixtureSignature: baseline.fixtureSignature,
       severity,
-      categories: orderedDrifts.map((d) => d.category),
+      categories: [...orderedDrifts.map((d) => d.category), ...segments],
       message: orderedDrifts.map((d) => d.message).join(" "),
       recommendation: orderedDrifts.map((d) => d.recommendation).join(" "),
       baseline: summary.baseline,

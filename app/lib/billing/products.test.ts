@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { BillingInterval } from "@shopify/shopify-app-remix/server";
+import {
+  BillingInterval,
+  BillingReplacementBehavior,
+} from "@shopify/shopify-app-remix/server";
 import {
   BILLING_PRODUCTS,
   BILLING_PRODUCT_LIST,
@@ -95,6 +98,20 @@ describe("buildBillingConfig", () => {
     // Recurring entries carry the 14-day trial documented in the README.
     expect(config.REGRESSION_SUITE_DISCOUNT.trialDays).toBe(14);
     expect(config.REGRESSION_SUITE_ALL.trialDays).toBe(14);
+  });
+
+  it("Slice 8 — sets replacementBehavior STANDARD on recurring entries so $149→$299 upgrades prorate", () => {
+    expect(config.REGRESSION_SUITE_DISCOUNT.replacementBehavior).toBe(
+      BillingReplacementBehavior.Standard,
+    );
+    expect(config.REGRESSION_SUITE_ALL.replacementBehavior).toBe(
+      BillingReplacementBehavior.Standard,
+    );
+  });
+
+  it("Slice 8 — never sets replacementBehavior on one-time entries (audit charges aren't replaceable)", () => {
+    expect("replacementBehavior" in config.MIGRATION_RISK_AUDIT).toBe(false);
+    expect("replacementBehavior" in config.MULTI_SCRIPT_AUDIT).toBe(false);
   });
 });
 

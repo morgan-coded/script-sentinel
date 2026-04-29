@@ -10,7 +10,10 @@
  * Pricing comes from the product README. Only Shopify Managed Billing is supported
  * (App Store apps must use it). USD-only at launch.
  */
-import { BillingInterval } from "@shopify/shopify-app-remix/server";
+import {
+  BillingInterval,
+  BillingReplacementBehavior,
+} from "@shopify/shopify-app-remix/server";
 
 export const CURRENCY = "USD" as const;
 
@@ -111,6 +114,15 @@ export type OneTimeBillingEntry = {
 };
 export type RecurringBillingEntry = {
   trialDays?: number;
+  /**
+   * Slice 8 — `STANDARD` enables prorated upgrades. When a $149/mo
+   * subscriber selects the $299/mo tier, Shopify Managed Billing replaces
+   * the existing subscription and credits the unused portion of the old
+   * one against the new charge. Without this field, the upgrade either
+   * fails outright or double-charges depending on the merchant's plan
+   * state.
+   */
+  replacementBehavior?: BillingReplacementBehavior;
   lineItems: Array<{
     amount: number;
     currencyCode: string;
@@ -128,6 +140,9 @@ function oneTime(product: BillingProduct): OneTimeBillingEntry {
 
 function recurring(product: BillingProduct): RecurringBillingEntry {
   const entry: RecurringBillingEntry = {
+    // Prorated tier upgrades ($149 ↔ $299) ride on STANDARD; any other
+    // value would either fail mid-cycle or double-charge.
+    replacementBehavior: BillingReplacementBehavior.Standard,
     lineItems: [
       {
         amount: product.amount,

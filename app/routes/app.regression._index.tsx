@@ -33,6 +33,7 @@ import {
   listAlertsForRun,
   listRegressionRuns,
 } from "../lib/regression/store.server";
+import { listDriftResultsForRun } from "../lib/audit/store.server";
 import { runRegressionForShop } from "../lib/regression/runner.server";
 import { SentinelEmptyState } from "../components/SentinelEmptyState";
 
@@ -86,6 +87,26 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     ? await listAlertsForRun(session.shop, latestRun.id)
     : [];
 
+  // Slice 8 — segment breakdown for the latest run. Pulls DriftResult rows
+  // for the latest DriftRun and slices by `categories` membership. Only one
+  // query (latest run); trend rows stay denormalised.
+  let latestSegments = { b2bCritical: 0, b2bWarning: 0, marketCritical: 0, marketWarning: 0 };
+  if (latestRun?.driftRunId) {
+    const results = await listDriftResultsForRun(session.shop, latestRun.driftRunId);
+    for (const r of results) {
+      if (r.severity !== "critical" && r.severity !== "warning") continue;
+      const isCritical = r.severity === "critical";
+      if (r.categories.includes("b2b")) {
+        if (isCritical) latestSegments.b2bCritical++;
+        else latestSegments.b2bWarning++;
+      }
+      if (r.categories.includes("market")) {
+        if (isCritical) latestSegments.marketCritical++;
+        else latestSegments.marketWarning++;
+      }
+    }
+  }
+
   return {
     isPlus: true as const,
     planDisplayName: plan.publicDisplayName,
@@ -130,6 +151,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         createdAt: a.createdAt.toISOString(),
       }),
     ),
+    latestSegments,
   };
 };
 
@@ -229,7 +251,7 @@ export default function RegressionIndex() {
     );
   }
 
-  const { subscription, runs, latestAlerts, totalRunCount, visibleRunCount } = data;
+  const { subscription, runs, latestAlerts, totalRunCount, visibleRunCount, latestSegments } = data;
   const gated = !subscription && totalRunCount > visibleRunCount;
   const latestRun = runs[0] ?? null;
 
@@ -330,19 +352,35 @@ export default function RegressionIndex() {
                     body="Click Run regression now to compute drift against your latest captured outputs, or wait for tonight's cron run."
                   />
                 ) : (
-                  <List type="bullet">
-                    {runs.map((r) => (
-                      <List.Item key={r.id}>
-                        <strong>{r.startedAt.slice(0, 10)}</strong> ·{" "}
-                        {r.trigger} · {r.fixturesExamined} fixtures ·{" "}
-                        {r.criticalCount} critical · {r.warningCount} warning ·{" "}
-                        <em>
-                          {r.newCriticalCount + r.newWarningCount} new alert
-                          {r.newCriticalCount + r.newWarningCount === 1 ? "" : "s"}
-                        </em>
-                      </List.Item>
-                    ))}
-                  </List>
+                  <BlockStack gap="200">
+                    {latestSegments &&
+                    latestSegments.b2bCritical +
+                      latestSegments.b2bWarning +
+                      latestSegments.marketCritical +
+                      latestSegments.marketWarning >
+                      0 ? (
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        Latest run segment breakdown — B2B drift:{" "}
+                        {latestSegments.b2bCritical} critical ·{" "}
+                        {latestSegments.b2bWarning} warning. Market drift:{" "}
+                        {latestSegments.marketCritical} critical ·{" "}
+                        {latestSegments.marketWarning} warning.
+                      </Text>
+                    ) : null}
+                    <List type="bullet">
+                      {runs.map((r) => (
+                        <List.Item key={r.id}>
+                          <strong>{r.startedAt.slice(0, 10)}</strong> ·{" "}
+                          {r.trigger} · {r.fixturesExamined} fixtures ·{" "}
+                          {r.criticalCount} critical · {r.warningCount} warning ·{" "}
+                          <em>
+                            {r.newCriticalCount + r.newWarningCount} new alert
+                            {r.newCriticalCount + r.newWarningCount === 1 ? "" : "s"}
+                          </em>
+                        </List.Item>
+                      ))}
+                    </List>
+                  </BlockStack>
                 )}
               </BlockStack>
             </Card>

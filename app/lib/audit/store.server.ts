@@ -374,7 +374,15 @@ function isSeverity(s: string): s is DriftSeverity {
 }
 
 function isCategory(s: unknown): s is DriftCategory {
-  return s === "discount" || s === "shipping" || s === "payment" || s === "totals";
+  return (
+    s === "discount" ||
+    s === "shipping" ||
+    s === "payment" ||
+    s === "totals" ||
+    // Slice 8 — segment tags persisted alongside behavioural categories.
+    s === "b2b" ||
+    s === "market"
+  );
 }
 
 function parseSummary(json: string): DriftResult["baseline"] {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  computeSegments,
   runDiff,
   type DiffBaselineInput,
   type DiffOutputInput,
@@ -318,5 +319,132 @@ describe("runDiff — graceful empty-shop contract", () => {
         ],
       }),
     ).not.toThrow();
+  });
+});
+
+describe("Slice 8 — segment tagging (computeSegments)", () => {
+  it("emits no segment tags for a default-market, no-tags fixture", () => {
+    expect(
+      computeSegments({
+        presentmentCurrency: "USD",
+        shippingCountryCode: "US",
+      }),
+    ).toEqual([]);
+  });
+
+  it("emits 'b2b' when customerTags is non-empty (any tag value counts)", () => {
+    expect(
+      computeSegments({
+        customerTags: ["wholesale"],
+        presentmentCurrency: "USD",
+        shippingCountryCode: "US",
+      }),
+    ).toEqual(["b2b"]);
+  });
+
+  it("emits 'market' for non-USD currency", () => {
+    expect(
+      computeSegments({
+        presentmentCurrency: "EUR",
+        shippingCountryCode: "DE",
+      }),
+    ).toEqual(["market"]);
+  });
+
+  it("emits 'market' for non-US country even when currency is USD", () => {
+    expect(
+      computeSegments({
+        presentmentCurrency: "USD",
+        shippingCountryCode: "CA",
+      }),
+    ).toEqual(["market"]);
+  });
+
+  it("emits both 'b2b' and 'market' in deterministic order when both apply", () => {
+    expect(
+      computeSegments({
+        customerTags: ["vip"],
+        presentmentCurrency: "EUR",
+        shippingCountryCode: "DE",
+      }),
+    ).toEqual(["b2b", "market"]);
+  });
+
+  it("treats null shippingCountryCode as default (no market tag from country alone)", () => {
+    expect(
+      computeSegments({
+        presentmentCurrency: "USD",
+        shippingCountryCode: null,
+      }),
+    ).toEqual([]);
+  });
+});
+
+describe("Slice 8 — runDiff appends segment tags to drift result categories", () => {
+  it("appends 'b2b' to a drifted B2B fixture's categories", () => {
+    const result = runDiff({
+      baselines: [
+        baseline({
+          totalDiscountAmount: 10,
+          customerTags: ["wholesale"],
+        }),
+      ],
+      outputs: [output({ observedDiscountAmount: 0 })],
+    });
+    expect(result.results).toHaveLength(1);
+    expect(result.results[0].categories).toEqual(["discount", "b2b"]);
+  });
+
+  it("appends 'market' to a drifted non-USD fixture's categories", () => {
+    const result = runDiff({
+      baselines: [
+        baseline({
+          totalDiscountAmount: 10,
+          presentmentCurrency: "EUR",
+          shippingCountryCode: "DE",
+        }),
+      ],
+      outputs: [
+        output({
+          observedDiscountAmount: 0,
+          presentmentCurrency: "EUR",
+        }),
+      ],
+    });
+    expect(result.results[0].categories).toEqual(["discount", "market"]);
+  });
+
+  it("does NOT emit a drift result for a B2B fixture that matches exactly (segment tags never appear without behavioural drift)", () => {
+    const result = runDiff({
+      baselines: [
+        baseline({
+          totalDiscountAmount: 10,
+          customerTags: ["wholesale"],
+        }),
+      ],
+      outputs: [output({ observedDiscountAmount: 10 })],
+    });
+    expect(result.results).toHaveLength(0);
+    expect(result.stats.match).toBe(1);
+  });
+
+  it("emits both segments in order on a multi-segment drifted fixture", () => {
+    const result = runDiff({
+      baselines: [
+        baseline({
+          totalDiscountAmount: 10,
+          customerTags: ["vip"],
+          presentmentCurrency: "EUR",
+          shippingCountryCode: "DE",
+        }),
+      ],
+      outputs: [
+        output({
+          observedDiscountAmount: 0,
+          presentmentCurrency: "EUR",
+        }),
+      ],
+    });
+    expect(result.results[0].categories).toEqual(["discount", "b2b", "market"]);
   });
 });

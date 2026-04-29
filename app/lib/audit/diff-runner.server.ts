@@ -53,6 +53,12 @@ export async function runDriftAndPersist(shopDomain: string): Promise<DiffRunOut
       paymentGatewayNames: safeJsonArray(f.baseline?.paymentGatewayNames ?? "[]"),
       cartTotal: f.baseline?.cartTotal ?? 0,
       presentmentCurrency: f.presentmentCurrency,
+      // Slice 8 — segment context. Empty customerTagSignature → no B2B tag;
+      // shippingCountryCode null → market tag derived from currency only.
+      customerTags: f.customerTagSignature
+        ? f.customerTagSignature.split(",").filter((t) => t.length > 0)
+        : [],
+      shippingCountryCode: f.shippingCountryCode,
     }));
 
   const outputs = outputRows.map((o) => ({
