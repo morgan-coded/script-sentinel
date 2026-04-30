@@ -17,6 +17,9 @@ database.sqlite
 yarn.lock
 pnpm-lock.yaml
 
+/docs/video/*.mp4
+/docs/video/.tmp-*/
+
 /extensions/*/dist
 
 # Ignore shopify files created during app dev
