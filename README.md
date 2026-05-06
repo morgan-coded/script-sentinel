@@ -9,6 +9,26 @@ Scripts, deploys Functions, or changes checkout behavior. See
 `SCRIPT-SENTINEL-README.pdf` for the full product narrative and
 `SCRIPT-SENTINEL-ROADMAP.pdf` for the 10-slice build plan.
 
+## Current State
+
+Script Sentinel is implemented beyond the initial app shell. Current `main` is anchored at `854b66c` with Shopify-review route hardening deployed for the live app URL `https://script-sentinel-ptkfe.ondigitalocean.app`.
+
+Current product surfaces include:
+
+- Plus-only embedded app shell and Shopify Managed Billing catalog
+- merchant-paste legacy Script intake and classification
+- PII-scrubbed 60-day order fixture generation
+- paid Migration Risk Audit PDF flow
+- Functions discovery and live-observation output capture
+- deterministic drift comparison and alerts
+- recurring regression-suite surface
+- GDPR webhooks and public privacy policy
+- review-safe direct `/app*`, `/privacy`, and `/health` routes
+
+Current Shopify scopes remain read-only: `read_orders`, `read_products`, `read_discounts`, `read_locations`, and `read_shipping`.
+
+Production uses PostgreSQL. Local test runs require the expected database environment for persistence-backed suites.
+
 ## Slice 1 status — App shell + Managed Billing
 
 **What works in this slice**
