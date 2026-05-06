@@ -11,7 +11,13 @@ Scripts, deploys Functions, or changes checkout behavior. See
 
 ## Current State
 
-Script Sentinel is implemented beyond the initial app shell. Current `main` is anchored at `854b66c` with Shopify-review route hardening deployed for the live app URL `https://script-sentinel-ptkfe.ondigitalocean.app`.
+Script Sentinel is implemented through the launch-prep path and is deployed at
+`https://script-sentinel-ptkfe.ondigitalocean.app`. GitHub `main` is currently
+at `ec161d2` (`docs: refresh README current state`). The last shipped app-code
+hardening pass is `854b66c` (`fix: harden script sentinel review routes`),
+which made the Shopify-review direct routes safe: `/app*`, `/privacy`,
+`/privacy.html`, and `/health` now return review-friendly responses instead of
+raw embedded-app errors.
 
 Current product surfaces include:
 
@@ -27,7 +33,9 @@ Current product surfaces include:
 
 Current Shopify scopes remain read-only: `read_orders`, `read_products`, `read_discounts`, `read_locations`, and `read_shipping`.
 
-Production uses PostgreSQL. Local test runs require the expected database environment for persistence-backed suites.
+Production uses DigitalOcean Managed PostgreSQL through App Platform. Local
+test runs require the expected database environment for persistence-backed
+suites.
 
 ## Slice 1 status — App shell + Managed Billing
 
@@ -392,9 +400,8 @@ locally-stored Slice 3 + Slice 5 data.
   in the separate Slice 7 — Continuous Regression Suite section below;
   not part of this polish slice.
 - **App Store submission readiness** — covered in the Slice 9 section
-  below (GDPR webhooks now shipped, privacy policy in place, listing
-  copy finalized). Lighthouse, screenshot capture, demo recording, and
-  the actual App Store form remain live-ceremony work post-deploy.
+  below (GDPR webhooks shipped, privacy policy in place, listing copy
+  submitted, and launch proof captured).
 - **No new dependencies, no new scopes, no breaking changes.**
 
 ## Slice 7 status — Continuous Regression Suite ($149/mo)
@@ -465,39 +472,40 @@ the app.
   against a seeded shop with related rows; `customers/*` smoke-test
   asserts the 200-only acknowledgement contract.
 
-**Submission checklist for the human operator**
+**Current App Store review state**
 
-- [ ] Deploy the merged `slice-9-app-store-launch` branch to the
-      production hosting target (Fly.io / Render / etc.).
-- [ ] Verify `https://<deployed-app>/legal/privacy.html` renders.
-- [ ] Run a Built-for-Shopify Lighthouse pass against the deployed
-      `/app` route. Target: ≥75 on each category. (Live ceremony.)
-- [ ] Capture the five screenshots described in the listing copy
-      below against the deployed app on a real Plus dev store.
-- [ ] Record the 60-second demo video using the demo script below.
-- [ ] Submit the App Store form with: app name, listing copy, screen-
-      shots, demo video URL, privacy URL (`/legal/privacy.html`),
-      contact email, GDPR webhook URLs.
-- [ ] Plus Partner application: separate from App Store; submit via
-      Shopify Plus Partners portal once the app listing is published.
+- The app is deployed on DigitalOcean App Platform at
+  `https://script-sentinel-ptkfe.ondigitalocean.app`.
+- Shopify Partner review is submitted. The Partner page showed
+  "Success! We received your submission," and the review-safe direct-route
+  hardening pass has been deployed.
+- Public review routes are live: `/`, `/app`, `/app/scripts`,
+  `/app/fixtures`, `/app/audit`, `/app/functions`, `/app/drift`,
+  `/app/regression`, `/auth/login`, `/legal/privacy.html`, `/privacy.html`,
+  `/privacy`, and `/health` return review-friendly responses.
+- Unauthenticated `/api/cron/regression` returns the expected `401`;
+  unsigned webhook `GET` requests return the expected `400`.
+- Built-for-Shopify Lighthouse prep passed on the public root and privacy
+  pages with 99-100 category scores in the local launch artifacts.
+- Draft screenshots and demo video artifacts exist in the Mac launch artifact
+  folder. Treat them as launch proof unless Shopify asks for replacement media.
 
-**What this slice deliberately does NOT include**
+**What remains outside code**
 
-- **Lighthouse verification, screenshot capture, demo video** — all
-  require a deployed URL and a real browser; deferred to a Codex live
-  ceremony after merge.
-- **The actual App Store form submission** — only the human can sign
-  the developer agreement and click submit.
-- **Plus Partner application** — separate workflow from the App Store
-  listing; needs the published listing URL as input.
+- **Protected Order object approval** — fixture generation, audit generation,
+  and full drift proof depend on Shopify granting protected Order-data access.
+  The launch query avoids optional address fields; the remaining blocker is the
+  protected Order object itself.
+- **Final App Store / Partner ceremony** — only the human/operator should click
+  final account/legal/partner actions or respond to Shopify reviewer messages.
+- **Plus Partner application** — separate workflow from the App Store listing;
+  needs the published listing URL as input.
 
 ### App Store listing copy (Slice 9 — final)
 
 The Slice 9 launch slice landed the GDPR webhooks and privacy policy.
-Listing copy below is the final version prepared for App Store review,
-ready for submission once the human operator captures screenshots,
-records the demo, and signs the developer agreement. Update only if
-Shopify reviewers request specific changes.
+Listing copy below is the submitted App Store review copy. Keep it stable
+unless Shopify reviewers request specific changes.
 
 - **Screenshot 1** — Dashboard with the six-step stepper showing all
   steps complete and the recent-activity panel with a "0 critical"
@@ -559,25 +567,30 @@ npm run dev                           # `shopify app dev` opens an admin install
 ```
 
 The CLI prints an install URL — open it in the dev store and approve the OAuth scopes.
-On install you should land on `/app`, see the dashboard with a green "Shopify Plus"
-badge, and a disabled "Run migration audit" button. Installing on a non-Plus store
-should render the gate copy instead.
+On install you should land on `/app`, see the six-step dashboard with a green
+"Shopify Plus" badge, and use the embedded CTAs for scripts, fixtures, audit,
+Functions capture, drift, and regression. Installing on a non-Plus store should
+render the gate copy instead.
 
 ### What still requires Shopify Partner / dev-store setup
+
+For a fresh local Partner app, these paths still require Shopify-issued
+credentials and a development store:
 
 - **End-to-end OAuth install verification** (Plus and non-Plus). Needs a Partners
   app + at least one Plus dev store, plus a non-Plus dev store (Basic / Starter)
   to confirm the gate.
-- **Live billing flow** ($199 one-time charge, $149/mo subscription). Managed
-  Billing requires a real Shopify charge confirmation in a dev store; the test
-  harness only verifies the static config shape.
-- **Webhook delivery** — the uninstall handler is unit-tested, but verifying real
-  HMAC signing requires uninstalling the app from the dev store admin and
-  watching the webhook log.
+- **Live billing flow** ($199 one-time charge, $149/mo/$299/mo subscriptions).
+  Managed Billing requires a real Shopify charge confirmation in a dev store; the
+  test harness verifies the wrapper and static config.
+- **Webhook delivery** — uninstall and GDPR handlers are unit-tested, but
+  verifying real HMAC signing requires Shopify to deliver the webhook.
+- **Protected Order object access** — local fixture/audit/drift end-to-end proof
+  requires Shopify approval for protected Order data. Without that approval, the
+  UI should surface the protected-data blocker rather than throwing a 500.
 
-These are documented blockers; everything they verify has been simulated by tests
-where practical. Run `npm test` for the verifiable surface; run `npm run dev` for
-the parts that need Shopify-issued credentials.
+Run `npm test` for the verifiable surface; run `npm run dev` for the parts that
+need Shopify-issued credentials.
 
 ## Constraints (non-negotiable)
 
