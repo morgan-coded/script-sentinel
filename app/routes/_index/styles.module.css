@@ -1,0 +1,547 @@
+.page {
+  --ink: #101723;
+  --muted: #566476;
+  --line: #d9e0e7;
+  --surface: #ffffff;
+  --soft: #f6f7f4;
+  --navy: #08131f;
+  --amber: #d76516;
+  --amber-soft: #fff0df;
+  --teal: #087d75;
+  --green: #15803d;
+  width: 100%;
+  min-height: 100%;
+  background: linear-gradient(180deg, #fbfbf7 0%, #f6f7f4 58%, #eef2ee 100%);
+  color: var(--ink);
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.page a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.header {
+  display: flex;
+  width: min(100% - 3rem, 84rem);
+  align-items: center;
+  justify-content: space-between;
+  gap: 2rem;
+  margin: 0 auto;
+  padding: 1.35rem 0;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  min-width: max-content;
+}
+
+.mark {
+  display: grid;
+  width: 2.65rem;
+  height: 2.65rem;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--surface);
+  color: var(--amber);
+  font-weight: 850;
+  box-shadow: 0 1rem 2.2rem rgba(16, 23, 35, 0.08);
+}
+
+.brand strong,
+.brand small {
+  display: block;
+}
+
+.brand strong {
+  font-size: 1rem;
+  line-height: 1.1;
+}
+
+.brand small {
+  margin-top: 0.18rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 1.6rem;
+  color: #344256;
+  font-size: 0.9rem;
+  font-weight: 680;
+}
+
+.nav a:hover {
+  color: var(--ink);
+}
+
+.headerCta,
+.primaryAction,
+.secondaryAction,
+.button {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  font-weight: 780;
+}
+
+.headerCta {
+  min-width: max-content;
+  border: 1px solid #efc2a0;
+  background: #fff8f2;
+  padding: 0.65rem 0.9rem;
+  color: #8d3d10;
+  font-size: 0.86rem;
+}
+
+.hero {
+  display: grid;
+  width: min(100% - 3rem, 84rem);
+  grid-template-columns: minmax(0, 0.9fr) minmax(32rem, 1.1fr);
+  align-items: center;
+  gap: 4rem;
+  margin: 0 auto;
+  padding: 5.5rem 0 7.5rem;
+}
+
+.heroCopy h1 {
+  max-width: 12ch;
+  margin: 1rem 0 0;
+  color: var(--ink);
+  font-size: 5.2rem;
+  font-weight: 820;
+  letter-spacing: 0;
+  line-height: 0.94;
+}
+
+.heroCopy p,
+.sectionIntro p,
+.deadlineSection p,
+.darkSection p,
+.openSection p {
+  max-width: 43rem;
+  margin: 1.5rem 0 0;
+  color: var(--muted);
+  font-size: 1.08rem;
+  line-height: 1.78;
+}
+
+.deadlinePill {
+  display: inline-flex;
+  border: 1px solid #f3c19a;
+  border-radius: 999px;
+  background: var(--amber-soft);
+  padding: 0.48rem 0.72rem;
+  color: #93420e;
+  font-size: 0.78rem;
+  font-weight: 820;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.heroActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  margin-top: 2rem;
+}
+
+.primaryAction,
+.button {
+  border: 0;
+  background: var(--amber);
+  color: #240d02;
+  box-shadow: 0 1rem 2.5rem rgba(215, 101, 22, 0.24);
+}
+
+.primaryAction,
+.secondaryAction {
+  padding: 0.9rem 1.15rem;
+  font-size: 0.92rem;
+}
+
+.secondaryAction {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.preview {
+  border: 1px solid #cbd6df;
+  border-radius: 0.5rem;
+  background: rgba(255, 255, 255, 0.92);
+  padding: 1rem;
+  box-shadow: 0 2.5rem 6rem rgba(16, 23, 35, 0.13);
+}
+
+.previewHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.6rem 0.65rem 1rem;
+}
+
+.previewHeader span,
+.codeCard span,
+.driftCard span,
+.sectionNumber {
+  color: var(--teal);
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.previewHeader h2 {
+  margin: 0.35rem 0 0;
+  font-size: 1.35rem;
+  letter-spacing: 0;
+}
+
+.previewHeader strong {
+  border-radius: 999px;
+  background: #f1f5f9;
+  padding: 0.45rem 0.72rem;
+  color: #475569;
+  font-size: 0.75rem;
+}
+
+.previewGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.8rem;
+}
+
+.codeCard,
+.driftCard {
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: #f8fafc;
+  padding: 1rem;
+}
+
+.codeCard pre {
+  overflow-x: auto;
+  margin: 0.75rem 0 0;
+  color: #e5eef8;
+  border-radius: 0.5rem;
+  background: var(--navy);
+  padding: 1rem;
+  font-size: 0.78rem;
+  line-height: 1.65;
+  text-align: left;
+  white-space: pre-wrap;
+}
+
+.driftCard ul {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.driftCard li {
+  min-height: 6rem;
+  border: 1px solid #dce5ec;
+  border-radius: 0.5rem;
+  background: var(--surface);
+  padding: 0.8rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.driftCard strong {
+  display: block;
+  margin-bottom: 0.35rem;
+  color: var(--ink);
+}
+
+.deadlineSection,
+.section,
+.workflowSection,
+.openSection {
+  display: grid;
+  width: min(100% - 3rem, 84rem);
+  grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.28fr);
+  gap: 4rem;
+  margin: 0 auto;
+  padding: 5.5rem 0;
+}
+
+.deadlineSection {
+  align-items: start;
+  border-top: 1px solid var(--line);
+}
+
+.sectionIntro h2,
+.deadlineSection h2,
+.darkSection h2,
+.openSection h2 {
+  max-width: 12ch;
+  margin: 0.8rem 0 0;
+  color: var(--ink);
+  font-size: 3.5rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+.cardGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+}
+
+.card {
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--surface);
+  padding: 1.45rem;
+  box-shadow: 0 1.25rem 2.6rem rgba(16, 23, 35, 0.06);
+}
+
+.card > span {
+  display: block;
+  width: 2.4rem;
+  height: 0.34rem;
+  margin-bottom: 1.4rem;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--amber), var(--teal));
+}
+
+.card h3 {
+  margin: 0;
+  font-size: 1.08rem;
+}
+
+.card p {
+  margin: 0.75rem 0 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.7;
+}
+
+.workflowSection {
+  border-top: 1px solid var(--line);
+}
+
+.workflowList {
+  display: grid;
+  gap: 0.85rem;
+  margin: 0;
+  padding: 0;
+  counter-reset: workflow;
+  list-style: none;
+}
+
+.workflowList li {
+  counter-increment: workflow;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--surface);
+  padding: 1rem 1.2rem;
+}
+
+.workflowList li::before {
+  content: "0" counter(workflow);
+  display: grid;
+  width: 2.6rem;
+  height: 2.6rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 0.5rem;
+  background: var(--amber-soft);
+  color: #a3470f;
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.workflowList span {
+  color: var(--ink);
+  font-weight: 760;
+}
+
+.darkSection {
+  display: grid;
+  grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.28fr);
+  gap: 4rem;
+  width: 100%;
+  margin: 0;
+  padding: 5.5rem max(1.5rem, calc((100vw - 84rem) / 2));
+  background: var(--navy);
+  color: #fff;
+}
+
+.darkSection h2,
+.darkSection .sectionNumber {
+  color: #fff;
+}
+
+.darkSection p {
+  color: #c8d4df;
+}
+
+.boundaryList {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.boundaryList li {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 0.5rem;
+  background: rgba(255, 255, 255, 0.045);
+  padding: 1.15rem;
+  color: #e5edf5;
+  font-weight: 720;
+}
+
+.openSection {
+  align-items: start;
+}
+
+.formCard {
+  display: grid;
+  gap: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--surface);
+  padding: 1.4rem;
+  box-shadow: 0 1.5rem 3rem rgba(16, 23, 35, 0.08);
+}
+
+.label {
+  display: grid;
+  gap: 0.55rem;
+  color: var(--ink);
+  font-weight: 760;
+  text-align: left;
+}
+
+.label small {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 500;
+  line-height: 1.55;
+}
+
+.input {
+  min-height: 3rem;
+  border: 1px solid #cfd8e2;
+  border-radius: 0.5rem;
+  padding: 0 0.9rem;
+  color: var(--ink);
+  font: inherit;
+}
+
+.input:focus {
+  outline: 3px solid rgba(8, 125, 117, 0.18);
+  outline-offset: 1px;
+}
+
+.button {
+  width: 100%;
+  cursor: pointer;
+  font: inherit;
+}
+
+@media only screen and (max-width: 70rem) {
+  .nav {
+    display: none;
+  }
+
+  .hero,
+  .deadlineSection,
+  .section,
+  .workflowSection,
+  .darkSection,
+  .openSection {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+
+  .hero {
+    padding-top: 3.5rem;
+  }
+
+  .heroCopy h1 {
+    max-width: 11ch;
+    font-size: 4.4rem;
+  }
+}
+
+@media only screen and (max-width: 46rem) {
+  .header,
+  .hero,
+  .deadlineSection,
+  .section,
+  .workflowSection,
+  .openSection {
+    width: min(100% - 2rem, 84rem);
+  }
+
+  .header {
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .headerCta {
+    display: none;
+  }
+
+  .brand small {
+    max-width: 11rem;
+  }
+
+  .heroCopy h1 {
+    font-size: 3.15rem;
+    line-height: 1;
+  }
+
+  .heroActions {
+    flex-direction: column;
+  }
+
+  .primaryAction,
+  .secondaryAction {
+    width: 100%;
+  }
+
+  .previewHeader,
+  .driftCard ul,
+  .cardGrid,
+  .boundaryList {
+    grid-template-columns: 1fr;
+  }
+
+  .previewHeader {
+    display: grid;
+  }
+
+  .sectionIntro h2,
+  .deadlineSection h2,
+  .darkSection h2,
+  .openSection h2 {
+    max-width: 11ch;
+    font-size: 2.45rem;
+    line-height: 1.05;
+  }
+}

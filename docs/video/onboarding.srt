@@ -1,0 +1,69 @@
+1
+00:00:00,000 --> 00:00:17,322
+This is Script Sentinel for Shopify Plus. In this demo, we use safe sample
+data to show how a merchant moves from install to the first useful migration
+result, without writing discounts, deploying Functions, or changing checkout
+behavior.
+
+2
+00:00:17,322 --> 00:00:35,583
+After install, Shopify opens the embedded app inside Admin. Script Sentinel is
+Plus-focused and read-only: it asks for the information needed to inventory
+scripts, create test fixtures, observe Function outcomes, and produce
+migration evidence.
+
+3
+00:00:35,583 --> 00:00:55,587
+The dashboard is a six-step path: inventory Scripts, generate cart fixtures,
+run the Migration Risk Audit, discover deployed Functions, capture observed
+outputs, and run Drift alerts. Each step is based on stored app state, not a
+fabricated completion badge.
+
+4
+00:00:55,587 --> 00:01:14,954
+For legacy Scripts, the merchant pastes Ruby source from Script Editor. Script
+Sentinel renders it as text, never executes it, and classifies behavior such
+as discount logic, shipping rules, payment customization, B2B signals, and
+market conditions.
+
+5
+00:01:14,954 --> 00:01:34,434
+Next, Script Sentinel uses recent order history to build a deduped library of
+representative carts. The shipped fallback is the last 60 days, and PII such
+as names, emails, phone numbers, addresses, and customer identifiers is
+stripped before storage.
+
+6
+00:01:34,434 --> 00:01:55,985
+Shopify exposes Function metadata, so Script Sentinel can discover deployed
+Functions. Hosted apps do not get a simple Admin API test invocation endpoint,
+so output capture uses the honest live-observation model: observe post-
+deployment order outcomes and tie them back to fixture shapes.
+
+7
+00:01:55,985 --> 00:02:13,938
+With fixtures and observed outputs in place, the Drift run compares Script-era
+baselines against Function-era results. Demo data here shows matches,
+warnings, a critical difference, and missing coverage, so reviewers can see
+the real result states.
+
+8
+00:02:13,938 --> 00:02:33,792
+For the paid audit, Shopify Managed Billing handles confirmation. After
+purchase, Script Sentinel assembles Scripts, fixtures, risk scoring, Drift
+evidence, and readiness notes into a Migration Risk Audit PDF for the
+merchant, developer, or agency team.
+
+9
+00:02:33,792 --> 00:02:50,265
+After the first audit, the regression suite keeps the same evidence layer
+running. It summarizes recurring runs, new critical or warning alerts, and
+segment counts like B2B or market risk, while still staying read-only against
+the store.
+
+10
+00:02:50,265 --> 00:03:06,633
+That is Script Sentinel: a read-only evidence layer for Plus teams moving from
+Shopify Scripts to Shopify Functions. It does not convert Scripts or modify
+checkout. It helps the team prove parity before checkout Drift reaches
+customers.

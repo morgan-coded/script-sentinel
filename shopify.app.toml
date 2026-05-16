@@ -1,0 +1,66 @@
+# Script Sentinel — Plus-only, read-only regression-testing app
+# Keep all scopes read-only (architectural commitment).
+
+name = "Script Sentinel"
+client_id = "fb9981a0f053223f984058d9d0df143e"
+application_url = "https://script-sentinel.example.com"
+embedded = true
+
+[access_scopes]
+# READ-ONLY ONLY. Adding any write_* scope is an architectural regression — the entire
+# product premise is that we never modify checkout, discounts, scripts, or functions.
+#
+# Notes on the roadmap-listed scopes:
+#   - `read_checkouts` is NOT a real Admin API scope as of API 2026-04. Abandoned-
+#     checkout fields live under `read_orders`, so we drop it here.
+#   - Script-discovery (Shopify Scripts admin object) does not have a `read_scripts`
+#     scope and Admin-API access is unverified for the deprecation window. We will
+#     revisit with a merchant-paste fallback if needed. `read_script_tags`
+#     is unrelated (storefront ScriptTag) and intentionally excluded.
+scopes = "read_orders,read_products,read_discounts,read_locations,read_shipping"
+use_legacy_install_flow = false
+
+[auth]
+redirect_urls = [
+  "https://script-sentinel.example.com/auth/callback",
+]
+
+[webhooks]
+api_version = "2026-04"
+
+  # Handled by: /app/routes/webhooks.app.uninstalled.tsx
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/uninstalled"
+  topics = ["app/uninstalled"]
+
+  # Handled by: /app/routes/webhooks.app.scopes_update.tsx
+  [[webhooks.subscriptions]]
+  topics = ["app/scopes_update"]
+  uri = "/webhooks/app/scopes_update"
+
+  # GDPR mandatory compliance webhooks. Required for App Store
+  # submission. Script Sentinel does not store customer-identifying data
+  # (per the PII contract), so customers/* handlers acknowledge and return
+  # 200; shop/redact hard-deletes the Shop row and cascades through every
+  # related model.
+
+  # Handled by: /app/routes/webhooks.customers.data_request.tsx
+  [[webhooks.subscriptions]]
+  compliance_topics = ["customers/data_request"]
+  uri = "/webhooks/customers/data_request"
+
+  # Handled by: /app/routes/webhooks.customers.redact.tsx
+  [[webhooks.subscriptions]]
+  compliance_topics = ["customers/redact"]
+  uri = "/webhooks/customers/redact"
+
+  # Handled by: /app/routes/webhooks.shop.redact.tsx
+  [[webhooks.subscriptions]]
+  compliance_topics = ["shop/redact"]
+  uri = "/webhooks/shop/redact"
+
+[build]
+automatically_update_urls_on_dev = true
+name = "remix"
+roles = ["frontend", "backend"]
+webhooks_path = "/webhooks/app/uninstalled"

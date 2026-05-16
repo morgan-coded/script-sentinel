@@ -1,0 +1,614 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// The schema intentionally keeps values in portable scalar columns rather
+// than database-specific JSON types so migrations remain simple and reviewable.
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Session — owned by @shopify/shopify-app-session-storage-prisma. Do not rename
+// fields; they are read by the library directly.
+// ---------------------------------------------------------------------------
+model Session {
+  id                  String    @id
+  shop                String
+  state               String
+  isOnline            Boolean   @default(false)
+  scope               String?
+  expires             DateTime?
+  accessToken         String
+  userId              BigInt?
+  firstName           String?
+  lastName            String?
+  email               String?
+  accountOwner        Boolean   @default(false)
+  locale              String?
+  collaborator        Boolean?  @default(false)
+  emailVerified       Boolean?  @default(false)
+  refreshToken        String?
+  refreshTokenExpires DateTime?
+}
+
+// ---------------------------------------------------------------------------
+// Shop — Script Sentinel's per-store record. One row per myshopify domain.
+// Caches the latest plan-detection snapshot so the dashboard can render
+// without re-querying GraphQL on every load, and gives the uninstall webhook
+// a join key for cleanup.
+// ---------------------------------------------------------------------------
+model Shop {
+  myshopifyDomain     String               @id
+  shopName            String?
+  isPlus              Boolean              @default(false)
+  isDevelopment       Boolean              @default(false)
+  planDisplayName     String?
+  installedAt         DateTime             @default(now())
+  lastSeenAt          DateTime             @default(now())
+  uninstalledAt       DateTime?
+  charges             Charge[]
+  discoveredScripts   DiscoveredScript[]
+  cartFixtures        CartFixture[]
+  auditPurchases      AuditPurchase[]
+  auditReports        AuditReport[]
+  discoveredFunctions DiscoveredFunction[]
+  captureRuns         CaptureRun[]
+  functionOutputs     FunctionOutput[]
+  driftRuns           DriftRun[]
+  driftResults        DriftResult[]
+  regressionRuns      RegressionRun[]
+  driftAlerts         DriftAlert[]
+}
+
+// ---------------------------------------------------------------------------
+// Charge — record of every Shopify Managed Billing charge we've initiated.
+// State here is a cache; Shopify Billing API is the source of truth. Lets the
+// dashboard show "audit pending payment" / "subscription active" without an
+// extra GraphQL round-trip per request.
+// ---------------------------------------------------------------------------
+model Charge {
+  id               String    @id @default(cuid())
+  shopDomain       String
+  shop             Shop      @relation(fields: [shopDomain], references: [myshopifyDomain], onDelete: Cascade)
+  // Mirrors BillingPlanKey in app/lib/billing/products.ts. Stored as String;
+  // enforce the union at the application layer.
+  planKey          String
+  // "one_time" or "recurring", mirroring ChargeKind.
+  kind             String
+  amount           Int
+  currencyCode     String    @default("USD")
+  // Lifecycle states — kept simple: pending | active | declined |
+  // cancelled | expired. Validated at the call site.
+  status           String    @default("pending")
+  // Shopify-side identifier (gid://shopify/AppSubscription/123 or AppPurchaseOneTime/123).
+  shopifyChargeGid String?   @unique
+  confirmationUrl  String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  activatedAt      DateTime?
+  cancelledAt      DateTime?
+
+  @@index([shopDomain, status])
+  @@index([planKey])
+}
+
+// ---------------------------------------------------------------------------
+// DiscoveredScript — one row per Shopify Script the merchant has surfaced to
+// us. Verified 2026-04-29 that Shopify's Admin API in 2026-04 does NOT
+// expose legacy Script Editor scripts (no GraphQL `Script` object, no REST
+// /scripts.json endpoint, no `read_scripts` scope). The deprecation migration
+// path Shopify provides is an in-admin Customizations report — not an API.
+//
+// So we ship merchant-paste as the primary intake. The schema also leaves
+// room for a future Admin API path:
+//   - `origin` differentiates "paste" vs "admin_api"
+//   - `externalId` + `shopifyUpdatedAt` are populated only when origin = admin_api
+//
+// Source code is treated as untrusted text. Never render as HTML.
+// ---------------------------------------------------------------------------
+model DiscoveredScript {
+  id               String                @id @default(cuid())
+  shopDomain       String
+  shop             Shop                  @relation(fields: [shopDomain], references: [myshopifyDomain], onDelete: Cascade)
+  // Free-form merchant title (paste) or Shopify-supplied title (admin_api).
+  title            String
+  // Script Editor "type" — one of: line_item | shipping | payment | unknown.
+  // Stored as String; the union is enforced at the call site (see
+  // app/lib/shopify/scripts.ts).
+  scriptType       String                @default("unknown")
+  // Raw Ruby source. Stored verbatim, treated as untrusted text on display.
+  source           String
+  // True for active/published scripts the merchant says are running today.
+  // The active/archived split drives the two-tab UI in app/scripts.
+  isActive         Boolean               @default(true)
+  archivedAt       DateTime?
+  // "paste" today; "admin_api" reserved for a future Shopify-provided endpoint.
+  origin           String                @default("paste")
+  // Shopify's identifier when origin = admin_api. Null for paste.
+  externalId       String?
+  // Last modified timestamp from Shopify when origin = admin_api. Null for paste.
+  shopifyUpdatedAt DateTime?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  classification   ScriptClassification?
+
+  @@index([shopDomain, isActive])
+  @@index([shopDomain, scriptType])
+}
+
+// ---------------------------------------------------------------------------
+// ScriptClassification — heuristic classifier output PLUS optional manual
+// override. Stored 1:1 with DiscoveredScript so the override survives even if
+// the auto-classifier is re-run with new heuristics in a later phase.
+//
+// The effective category at read time is overrideCategory ?? autoCategory.
+// Both fields use the ClassificationCategory union (see classifier module).
+// ---------------------------------------------------------------------------
+model ScriptClassification {
+  id                String           @id @default(cuid())
+  scriptId          String           @unique
+  script            DiscoveredScript @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+  // Heuristic classifier output. Always populated.
+  autoCategory      String
+  // 0.0 – 1.0 confidence score from the heuristic. Used to flag low-confidence
+  // results in the UI ("Other / Needs Review").
+  autoConfidence    Float
+  // JSON array of pattern names the classifier matched. Lets the detail view
+  // explain *why* this category was picked, and helps debug regressions when
+  // we tweak the heuristics.
+  autoSignals       String           @default("[]")
+  // Merchant override. Null until the user explicitly reclassifies.
+  overrideCategory  String?
+  overrideReason    String?
+  overrideUpdatedAt DateTime?
+  updatedAt         DateTime         @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// CartFixture — a deduplicated representative cart drawn from the merchant's
+// historical orders. One row per unique combination of (line-item composition
+// + customer-tag set + market signature + applied discounts). Same composition
+// with different quantities collapses into a single fixture; we preserve the
+// quantity diversity in `quantitySamples` rather than storing N near-identical
+// rows.
+//
+// PII handling — strict invariants enforced by the extractor and by tests:
+//   - No customer names, emails, phones, or addresses on this row.
+//   - Launch does not request optional address fields from Shopify. If address
+//     data is ever supplied through an explicitly approved path,
+//     shippingCountryCode keeps only ISO-2 country and shippingPostalPrefix
+//     keeps only the FIRST 3 postal-code characters.
+//   - customerTagSignature is a sorted-comma-joined list of tags. Tags are
+//     merchant-controlled labels — any tag containing characters typical of
+//     PII (whitespace + email syntax) is dropped before storage.
+//
+// Determinism: `signature` is the SHA-256 of the canonical (sorted, lowercased,
+// quantity-normalized) composition string. Any two orders that produce the same
+// signature collapse into the same fixture row on re-runs. This is what makes
+// "click Generate fixtures" idempotent.
+// ---------------------------------------------------------------------------
+model CartFixture {
+  id                   String           @id @default(cuid())
+  shopDomain           String
+  shop                 Shop             @relation(fields: [shopDomain], references: [myshopifyDomain], onDelete: Cascade)
+  // Deterministic dedup signature. SHA-256 hex digest. Uniqueness is per-shop
+  // because a fixture in shop A is independent of an identical-looking
+  // fixture in shop B.
+  signature            String
+  // JSON array of { variantId, productId, sku, quantity, unitPrice }. Stored
+  // as String and parsed back to a typed shape at the application layer. Use
+  // the LineItemSnapshot type from app/lib/fixtures/extractor.ts.
+  lineItems            String
+  // Comma-joined sorted customer tags, or empty string if no tags / guest.
+  // Limited to a normalized set of tag names (no whitespace, no email-like).
+  customerTagSignature String           @default("")
+  // Nullable by default because launch does not request optional address fields.
+  // If explicitly approved later, stores only ISO-2 country code.
+  shippingCountryCode  String?
+  // Nullable by default because launch does not request optional address fields.
+  // If explicitly approved later, stores only the first 3 postal-code chars.
+  shippingPostalPrefix String?
+  // ISO-4217 currency code on the cart at order time. Used to differentiate
+  // market-pricing fixtures.
+  presentmentCurrency  String
+  // Composite "market signature" — currency today, plus country only when
+  // address data is supplied through an explicitly approved path. Kept as a
+  // separate field so we can swap to Shopify Markets when Admin API exposes it.
+  marketSignature      String           @default("")
+  // Compact summary of discount codes / automatic discounts that applied to
+  // the source order. Comma-joined sorted code list. Empty for orders with
+  // no captured discounts. Used in dedup so fixtures with-and-without a code
+  // are treated as different baselines.
+  discountSignature    String           @default("")
+  // Quantity diversity — JSON array of distinct total-quantity counts seen
+  // across orders that share the same line-item composition. e.g. [1, 2, 5]
+  // means we observed cart-quantity-totals of 1, 2, and 5 across the source
+  // orders that collapsed into this fixture.
+  quantitySamples      String           @default("[]")
+  // How many distinct historical orders folded into this fixture row. Used in
+  // the UI to show "12 orders matched this fixture".
+  observationCount     Int              @default(1)
+  // Source bookkeeping: timestamps of the first and last order that
+  // contributed to this fixture. Both are ISO instants on the source order.
+  firstObservedAt      DateTime
+  lastObservedAt       DateTime
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  baseline             FixtureBaseline?
+
+  @@unique([shopDomain, signature])
+  @@index([shopDomain, lastObservedAt])
+  @@index([shopDomain, presentmentCurrency])
+}
+
+// ---------------------------------------------------------------------------
+// FixtureBaseline — the historical outcome we observed in the order data:
+// what discount applied, what shipping rate was charged, what payment method
+// the customer used. This is the "ground truth" the diff engine will
+// compare Function output against.
+//
+// Stored 1:1 with CartFixture so we can re-run the extractor without losing
+// the captured baseline.
+// ---------------------------------------------------------------------------
+model FixtureBaseline {
+  id                   String      @id @default(cuid())
+  fixtureId            String      @unique
+  fixture              CartFixture @relation(fields: [fixtureId], references: [id], onDelete: Cascade)
+  // Observed discount outcome on the source order(s). Amounts are in major
+  // currency units (e.g. 12.50 dollars), keyed to presentmentCurrency on the
+  // parent fixture.
+  totalDiscountAmount  Float       @default(0)
+  // JSON array of { code?, type, value, allocationMethod }. Captured per
+  // discount application — see DiscountSnapshot in app/lib/fixtures/extractor.ts.
+  discountApplications String      @default("[]")
+  // The shipping rate the customer ultimately picked, by code/title.
+  shippingRateCode     String?
+  shippingRateTitle    String?
+  shippingRateAmount   Float?
+  // Payment gateway names the order used. Not enough to verify availability
+  // (Shopify only stores the chosen one in OrderTransaction), but useful as a
+  // hint for payment-customization parity checks.
+  paymentGatewayNames  String      @default("[]")
+  // Total price of the cart on the source order, in presentment currency.
+  // Used for sanity checks in the diff engine.
+  cartTotal            Float       @default(0)
+  // Snapshot timestamp — the processedAt of the most recent order that
+  // contributed to this baseline. Lets the UI show "baseline as of …".
+  capturedAt           DateTime
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// AuditPurchase — record of every Migration Risk Audit one-time charge
+// initiated through Shopify Managed Billing. Source of truth is
+// the Shopify Billing API; this row is a cache so the dashboard can show
+// "audit purchased / audit pending" without round-tripping for every render.
+//
+// Distinct from the generic `Charge` model because the audit
+// charge has a clean 1:N relationship with downloadable AuditReport rows
+// (the merchant pays once, can re-download for 12 months).
+// ---------------------------------------------------------------------------
+model AuditPurchase {
+  id               String        @id @default(cuid())
+  shopDomain       String
+  shop             Shop          @relation(fields: [shopDomain], references: [myshopifyDomain], onDelete: Cascade)
+  // Mirrors the BillingPlanKey — "MIGRATION_RISK_AUDIT" or
+  // "MULTI_SCRIPT_AUDIT". Stored as String for application-layer validation.
+  planKey          String
+  amount           Int
+  currencyCode     String        @default("USD")
+  // pending → active (after Shopify charge confirmation) → expired (12 months later)
+  // → refunded (manual via Shopify admin if needed).
+  status           String        @default("pending")
+  // gid://shopify/AppPurchaseOneTime/<id> from Shopify after charge creation.
+  shopifyChargeGid String?       @unique
+  confirmationUrl  String?
+  // Whether this charge was created with `isTest: true`. Test charges never
+  // bill real money — used in dev stores.
+  isTest           Boolean       @default(false)
+  createdAt        DateTime      @default(now())
+  activatedAt      DateTime?
+  // 12-month re-download window starts at activatedAt and expires here.
+  expiresAt        DateTime?
+  reports          AuditReport[]
+
+  @@index([shopDomain, status])
+}
+
+// ---------------------------------------------------------------------------
+// AuditReport — the frozen snapshot for a generated Migration Risk Audit.
+// We store the structured JSON snapshot rather than a binary PDF so:
+//   1. The database stays small (no Bytes columns of variable size)
+//   2. PDF rendering can evolve (typography, layout) without invalidating
+//      the merchant's purchased report — the data underneath is what was
+//      audited
+//   3. Re-download is deterministic — same snapshot in, same PDF out
+// ---------------------------------------------------------------------------
+model AuditReport {
+  id            String        @id @default(cuid())
+  shopDomain    String
+  shop          Shop          @relation(fields: [shopDomain], references: [myshopifyDomain], onDelete: Cascade)
+  purchaseId    String
+  purchase      AuditPurchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  // Family scope of the report. "single" → one Script family was audited
+  // (matching the $199 SKU); "multi" → all Script families ($499).
+  scope         String        @default("single")
+  // Snapshot of (Scripts + Fixtures + Risk grades + Open questions). JSON,
+  // see AuditSnapshot in app/lib/audit/risk-scorer.ts.
+  snapshot      String
+  // Counts pulled out of the snapshot for fast list rendering without
+  // re-parsing the JSON.
+  scriptCount   Int           @default(0)
+  fixtureCount  Int           @default(0)
+  highRiskCount Int           @default(0)
+  generatedAt   DateTime      @default(now())
+  // Server-side filename suggested when the merchant clicks Download.
+  filename      String
+
+  @@index([shopDomain, generatedAt])
+}
+
+// ---------------------------------------------------------------------------
+// DiscoveredFunction — a Shopify Function the merchant has installed/deployed
+// in their store, learned from the 2026-04 Admin GraphQL `shopifyFunctions`
+// query. One row per (shop, externalId).
+//
+// Verification 2026-04-29: Shopify exposes Functions DISCOVERY in the
+// Admin API but does NOT expose test-invocation. The only execution surface
+// is the local CLI (`shopify app function run`), which a hosted app cannot
+// reach. Per the roadmap's "Technical reality check", we fall back to live
+// observation of post-deployment orders (the CaptureRun/FunctionOutput
+// models below).
+// ---------------------------------------------------------------------------
+model DiscoveredFunction {
+  id             String           @id @default(cuid())
+  shopDomain     String
+  shop           Shop             @relation(fields: [shopDomain], references: [myshopifyDomain], onDelete: Cascade)
+  // Shopify-side gid (e.g. gid://shopify/ShopifyFunction/...).
+  externalId     String
+  title          String
+  // Free-form Shopify-supplied API type. Common values: "discounts",
+  // "delivery_customization", "payment_customization", "cart_transform".
+  // Stored as String so we don't have to migrate when Shopify adds new types.
+  apiType        String
+  apiVersion     String?
+  appTitle       String?
+  // True after the merchant has acknowledged this Function as the Function
+  // that replaces a given Script family. Discovery doesn't auto-link; merchants
+  // confirm associations manually.
+  acknowledgedAt DateTime?
+  // Last time the discovery query saw this Function. Used to decide when to
+  // mark a Function as removed (see uninstalledAt) without deleting the row.
+  lastSeenAt     DateTime         @default(now())
+  uninstalledAt  DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  outputs        FunctionOutput[]
+
+  @@unique([shopDomain, externalId])
+  @@index([shopDomain, apiType])
+}
+
+// ---------------------------------------------------------------------------
+// CaptureRun — one attempt at observing Function outputs against the
+// merchant's order history. Models the "Capture outputs" button click as a
+// discrete persistent event so the dashboard can show "last capture: X
+// orders examined, Y outputs captured" without back-computing it.
+//
+// Re-runs are safe: the runner upserts FunctionOutput by
+// (shopDomain, fixtureSignature, sourceOrderGid). Re-running won't duplicate
+// rows for the same source order.
+// ---------------------------------------------------------------------------
+model CaptureRun {
+  id              String           @id @default(cuid())
+  shopDomain      String
+  shop            Shop             @relation(fields: [shopDomain], references: [myshopifyDomain], onDelete: Cascade)
+  startedAt       DateTime         @default(now())
+  finishedAt      DateTime?
+  // Time window covered by this run. Defaults: yesterday → now, but the
+  // route can override.
+  windowFromAt    DateTime
+  windowToAt      DateTime
+  ordersExamined  Int              @default(0)
+  outputsCaptured Int              @default(0)
+  // pending | running | completed | failed
+  status          String           @default("pending")
+  errorMessage    String?
+  outputs         FunctionOutput[]
+
+  @@index([shopDomain, startedAt])
+}
+
+// ---------------------------------------------------------------------------
+// FunctionOutput — observed outcome of a real production order placed AFTER
+// the merchant deployed Functions. Same shape as FixtureBaseline so the
+// diff engine can compare them apples-to-apples per fixture signature.
+//
+// We don't link directly to a single DiscoveredFunction because real orders
+// can have multiple Functions firing (one discount + one shipping + one
+// payment). Instead, we link to the CaptureRun that produced the row, and
+// The diff engine matches outputs to Functions by apiType + observed
+// outcome shape.
+// ---------------------------------------------------------------------------
+model FunctionOutput {
+  id                      String              @id @default(cuid())
+  shopDomain              String
+  shop                    Shop                @relation(fields: [shopDomain], references: [myshopifyDomain], onDelete: Cascade)
+  captureRunId            String
+  captureRun              CaptureRun          @relation(fields: [captureRunId], references: [id], onDelete: Cascade)
+  // Optional link to a Function the runner attributes this output to. We
+  // attribute by apiType heuristic (discount Function → discount-shaped
+  // output); merchants can refine later.
+  functionId              String?
+  function                DiscoveredFunction? @relation(fields: [functionId], references: [id], onDelete: SetNull)
+  // Source order gid (e.g. gid://shopify/Order/123). Used to dedup re-runs.
+  sourceOrderGid          String
+  // Fixture signature (SHA-256) computed by the same extractor the fixture
+  // pipeline uses. Lets the diff engine join FunctionOutput → CartFixture
+  // without a foreign key
+  // (fixtures may not exist yet for a given signature on a fresh capture).
+  fixtureSignature        String
+  // Outcome fields, mirrored from FixtureBaseline so the diff engine reads
+  // both via a uniform shape.
+  observedDiscountAmount  Float               @default(0)
+  observedShippingCode    String?
+  observedShippingTitle   String?
+  observedShippingAmount  Float?
+  observedPaymentGateways String              @default("[]")
+  observedDiscountCodes   String              @default("[]")
+  cartTotal               Float               @default(0)
+  presentmentCurrency     String
+  capturedAt              DateTime
+  createdAt               DateTime            @default(now())
+
+  @@unique([shopDomain, fixtureSignature, sourceOrderGid])
+  @@index([shopDomain, capturedAt])
+  @@index([shopDomain, functionId])
+}
+
+// ---------------------------------------------------------------------------
+// DriftRun — one execution of the diff engine against the shop's
+// FixtureBaseline + FunctionOutput rows. Persisted so the route can show
+// "last run: 23 fixtures examined, 4 critical drifts" without re-computing.
+// Re-runs are safe — a new DriftRun creates fresh DriftResult rows; older
+// runs stay readable for trend analysis.
+// ---------------------------------------------------------------------------
+model DriftRun {
+  id               String        @id @default(cuid())
+  shopDomain       String
+  shop             Shop          @relation(fields: [shopDomain], references: [myshopifyDomain], onDelete: Cascade)
+  startedAt        DateTime      @default(now())
+  finishedAt       DateTime?
+  // Counts pulled out of results for fast list rendering.
+  fixturesExamined Int           @default(0)
+  matchCount       Int           @default(0)
+  missingCount     Int           @default(0)
+  driftCount       Int           @default(0)
+  criticalCount    Int           @default(0)
+  warningCount     Int           @default(0)
+  infoCount        Int           @default(0)
+  // pending | running | completed | failed
+  status           String        @default("pending")
+  errorMessage     String?
+  results          DriftResult[]
+
+  @@index([shopDomain, startedAt])
+}
+
+// ---------------------------------------------------------------------------
+// DriftResult — one row per fixture where the diff engine found
+// drift. Stores the structured baseline + output summaries so the UI can
+// render side-by-side without re-joining.
+//
+// Severity values: "critical" | "warning" | "info". Matches and missing-data
+// fixtures are NOT persisted — they're counted in the parent DriftRun for
+// fast summary rendering.
+// ---------------------------------------------------------------------------
+model DriftResult {
+  id               String   @id @default(cuid())
+  shopDomain       String
+  shop             Shop     @relation(fields: [shopDomain], references: [myshopifyDomain], onDelete: Cascade)
+  driftRunId       String
+  driftRun         DriftRun @relation(fields: [driftRunId], references: [id], onDelete: Cascade)
+  fixtureSignature String
+  severity         String
+  // Categories of drift detected. JSON array of "discount" | "shipping" |
+  // "payment" | "totals". Multiple categories possible per fixture.
+  categories       String   @default("[]")
+  message          String
+  recommendation   String
+  // Pre/post snapshots for the side-by-side UI. JSON, mirrors the diff
+  // engine's DriftSummary type.
+  baselineSummary  String   @default("{}")
+  outputSummary    String   @default("{}")
+  createdAt        DateTime @default(now())
+
+  @@index([shopDomain, severity])
+  @@index([shopDomain, fixtureSignature])
+  @@index([driftRunId])
+}
+
+// ---------------------------------------------------------------------------
+// RegressionRun — one execution of the Continuous Regression Suite
+// ($149/mo or $299/mo recurring product). Triggered nightly by an external
+// scheduler hitting /api/cron/regression, or manually from the dashboard.
+//
+// A RegressionRun wraps two existing operations:
+//   1. Capture (re-pull recent orders → FunctionOutput rows)
+//   2. Diff (re-run the diff engine → new DriftRun + DriftResult rows)
+// Plus an alert-detection step: detect NEW alerts (severity escalations) by
+// comparing the new DriftRun severity to the previous one per fixture, and
+// emit one DriftAlert row per regression so the dashboard can show trend.
+//
+// Persisted so the dashboard can render trend without re-computing, and so
+// gated free-tier views can still see the most recent snapshot.
+// ---------------------------------------------------------------------------
+model RegressionRun {
+  id              String       @id @default(cuid())
+  shopDomain      String
+  shop            Shop         @relation(fields: [shopDomain], references: [myshopifyDomain], onDelete: Cascade)
+  // "cron" or "manual" — distinguishes scheduled runs from on-demand
+  // dashboard clicks for support diagnosis.
+  trigger         String       @default("cron")
+  // Optional pointer to the DriftRun this regression spawned. Null until
+  // the diff phase succeeds.
+  driftRunId      String?
+  startedAt       DateTime     @default(now())
+  finishedAt      DateTime?
+  // pending | running | completed | failed
+  status          String       @default("pending")
+  // Counts denormalised from the spawned DriftRun for fast trend rendering.
+  fixturesExamined Int         @default(0)
+  matchCount      Int          @default(0)
+  driftCount      Int          @default(0)
+  criticalCount   Int          @default(0)
+  warningCount    Int          @default(0)
+  newCriticalCount Int         @default(0)
+  newWarningCount Int          @default(0)
+  errorMessage    String?
+  alerts          DriftAlert[]
+
+  @@index([shopDomain, startedAt])
+}
+
+// ---------------------------------------------------------------------------
+// DriftAlert — a single fixture-level severity escalation detected
+// by comparing this run's drift to the previous run. One row per fixture
+// where severity worsened (e.g. info → warning, none → critical) within a
+// RegressionRun.
+//
+// Distinct from DriftResult — DriftResult is the per-fixture diff
+// output; DriftAlert is the trend signal "this fixture got worse since
+// yesterday." Only the trend signal triggers the email.
+// ---------------------------------------------------------------------------
+model DriftAlert {
+  id               String        @id @default(cuid())
+  shopDomain       String
+  shop             Shop          @relation(fields: [shopDomain], references: [myshopifyDomain], onDelete: Cascade)
+  regressionRunId  String
+  regressionRun    RegressionRun @relation(fields: [regressionRunId], references: [id], onDelete: Cascade)
+  fixtureSignature String
+  // "critical" or "warning" — info-level alerts are not persisted (too noisy).
+  severity         String
+  // The severity in the PREVIOUS run for this fixture. "none" means the
+  // fixture didn't drift previously. Used in the email + dashboard to show
+  // the escalation arrow.
+  previousSeverity String        @default("none")
+  // Short message extracted from the underlying DriftResult (kept inline so
+  // the email renderer doesn't need to re-join across tables).
+  summary          String
+  // Whether the alert email was rendered + dispatched. The first version stores
+  // the rendered HTML and marks dispatched=true once the cron handler logs
+  // it for the deployer's email service to forward.
+  dispatchedAt     DateTime?
+  createdAt        DateTime      @default(now())
+
+  @@index([shopDomain, createdAt])
+  @@index([regressionRunId])
+}
