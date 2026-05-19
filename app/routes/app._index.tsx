@@ -382,11 +382,11 @@ export default function Index() {
                     <List.Item>Functions output capture</List.Item>
                     <List.Item>Diff engine + drift alerts</List.Item>
                     <List.Item>Pre-launch UX polish</List.Item>
-                    <List.Item>Continuous Regression Suite ($149/mo)</List.Item>
+                    <List.Item>Drift Monitor ($149/mo)</List.Item>
                   </List>
                   <Text as="p" variant="bodySm" tone="subdued">
-                    App Store launch (GDPR webhooks + listing assets) is still
-                    ahead.
+                    App Store launch surfaces include GDPR webhooks, privacy
+                    links, and listing-ready support routes.
                   </Text>
                 </BlockStack>
               </Card>

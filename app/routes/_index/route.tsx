@@ -79,6 +79,7 @@ export default function App() {
           <a href="#evidence">Evidence</a>
           <a href="#workflow">Workflow</a>
           <a href="#read-only">Read-only</a>
+          <a href="/docs.html">Docs</a>
         </nav>
         <a className={styles.headerCta} href="#open">
           Open app

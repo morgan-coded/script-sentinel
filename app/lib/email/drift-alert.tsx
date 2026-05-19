@@ -199,7 +199,7 @@ export function DriftAlertEmail(props: DriftAlertEmailProps) {
                 }}
               >
                 You're receiving this because you subscribed to the Script
-                Sentinel Regression Suite. Drift alerts are sent only when a
+                Sentinel Drift Monitor. Drift alerts are sent only when a
                 fixture's severity escalates compared to the previous run.
               </p>
             </td>

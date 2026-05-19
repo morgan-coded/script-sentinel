@@ -37,6 +37,19 @@ The app is organized around the migration sequence a Shopify Plus merchant would
 
 The launch posture is deliberately conservative: Script Sentinel tells merchants what to inspect and test. It does not promise automatic conversion, legal/compliance approval, or guaranteed migration success.
 
+## Pricing And Billing
+
+Shopify Managed Billing is the only public billing path. Current launch catalog:
+
+| Plan key | Public name | Price | Type |
+| --- | --- | --- | --- |
+| `MIGRATION_RISK_AUDIT` | Single Script Audit | `$99` | one-time launch audit |
+| `MULTI_SCRIPT_AUDIT` | Multi-Script Audit | `$299` | one-time launch audit |
+| `REGRESSION_SUITE_DISCOUNT` | Drift Monitor | `$149/mo` | recurring, 14-day trial |
+| `REGRESSION_SUITE_ALL` | Legacy All Rules Suite | `$299/mo` | retained legacy recurring plan |
+
+New public buying paths should lead with the $99 single audit, $299 multi-script audit, and $149/month Drift Monitor. The legacy all-rules recurring plan remains in code for existing or internal use.
+
 ## Architecture
 
 ```text
@@ -128,6 +141,8 @@ npm test
 ```
 
 Some persistence-backed tests require `DATABASE_URL` to point at a reachable PostgreSQL database. The CI workflow provisions Postgres for those checks.
+
+Live Shopify billing verification requires a real development store charge confirmation. Local tests verify the static catalog and billing wrappers, but they do not approve charges on Shopify's hosted confirmation screen.
 
 ## Constraints
 

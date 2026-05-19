@@ -24,8 +24,8 @@ import {
   findActiveSubscription,
   gateRegressionHistory,
   isSubscriptionPlanKey,
+  PUBLIC_SUBSCRIPTION_PLAN_KEYS,
   startSubscription,
-  SUBSCRIPTION_PLAN_KEYS,
   type SubscriptionBillingApi,
   type SubscriptionPlanKey,
 } from "../lib/billing/subscription";
@@ -117,7 +117,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           priceLabel: formatPrice(BILLING_PRODUCTS[subscription.plan]),
         }
       : null,
-    products: SUBSCRIPTION_PLAN_KEYS.map((key) => ({
+    products: PUBLIC_SUBSCRIPTION_PLAN_KEYS.map((key) => ({
       key,
       displayName: BILLING_PRODUCTS[key].displayName,
       priceLabel: formatPrice(BILLING_PRODUCTS[key]),
@@ -189,7 +189,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (!subscription) {
       return {
         error:
-          "Subscribe to the Regression Suite to run regressions on demand.",
+          "Subscribe to Drift Monitor to run regressions on demand.",
       };
     }
     try {
@@ -236,7 +236,7 @@ export default function RegressionIndex() {
   if (!data.isPlus) {
     return (
       <Page>
-        <TitleBar title="Regression Suite" />
+        <TitleBar title="Drift Monitor" />
         <Card>
           <BlockStack gap="200">
             <Text as="h2" variant="headingLg">
@@ -257,14 +257,14 @@ export default function RegressionIndex() {
 
   return (
     <Page>
-      <TitleBar title="Regression Suite" />
+      <TitleBar title="Drift Monitor" />
       <Layout>
         <Layout.Section>
           <Card>
             <BlockStack gap="300">
               <InlineStack gap="200" blockAlign="center" align="space-between">
                 <Text as="h2" variant="headingMd">
-                  Continuous regression
+                  Drift Monitor
                 </Text>
                 {subscription ? (
                   <Badge tone="success">{`Subscribed · ${subscription.priceLabel}`}</Badge>
@@ -294,7 +294,7 @@ export default function RegressionIndex() {
               <Card>
                 <BlockStack gap="300">
                   <Text as="h3" variant="headingMd">
-                    Subscribe to the Regression Suite
+                    Subscribe to Drift Monitor
                   </Text>
                   <Text as="p" variant="bodyMd" tone="subdued">
                     Free users see the most recent regression snapshot only;

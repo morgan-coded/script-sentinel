@@ -1,5 +1,5 @@
 /**
- * Persistence boundary for the Continuous Regression Suite.
+ * Persistence boundary for Drift Monitor.
  *
  * Owns RegressionRun + DriftAlert. The runner module orchestrates capture +
  * diff + alert detection and uses this module to persist results. The

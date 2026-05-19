@@ -3,8 +3,8 @@
  * `billing.check`.
  *
  * The catalog (`./products.ts`) defines two one-time SKUs:
- *   - MIGRATION_RISK_AUDIT — $199, single Script family
- *   - MULTI_SCRIPT_AUDIT   — $499, all Script families
+ *   - MIGRATION_RISK_AUDIT — $99 launch audit, single Script family
+ *   - MULTI_SCRIPT_AUDIT   — $299 launch audit, all Script families
  *
  * The audit route uses this module to:
  *   1. Check whether an active one-time purchase already exists for the shop
