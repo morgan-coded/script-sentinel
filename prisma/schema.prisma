@@ -338,7 +338,7 @@ model AuditReport {
   purchaseId    String
   purchase      AuditPurchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
   // Family scope of the report. "single" → one Script family was audited
-  // (matching the $199 SKU); "multi" → all Script families ($499).
+  // (matching the $99 launch SKU); "multi" -> all Script families ($299).
   scope         String        @default("single")
   // Snapshot of (Scripts + Fixtures + Risk grades + Open questions). JSON,
   // see AuditSnapshot in app/lib/audit/risk-scorer.ts.
@@ -535,8 +535,8 @@ model DriftResult {
 }
 
 // ---------------------------------------------------------------------------
-// RegressionRun — Slice 7: one execution of the Continuous Regression Suite
-// ($149/mo or $299/mo recurring product). Triggered nightly by an external
+// RegressionRun — Slice 7: one execution of Drift Monitor
+// ($149/mo recurring product; legacy $299/mo plan retained). Triggered nightly by an external
 // scheduler hitting /api/cron/regression, or manually from the dashboard.
 //
 // A RegressionRun wraps two existing slice operations:

@@ -382,7 +382,7 @@ export default function Index() {
                     <List.Item>Slice 5 — Functions output capture</List.Item>
                     <List.Item>Slice 6 — Diff engine + drift alerts</List.Item>
                     <List.Item>Slice 7 — Pre-launch UX polish</List.Item>
-                    <List.Item>Slice 7 — Continuous Regression Suite ($149/mo)</List.Item>
+                    <List.Item>Slice 7 — Drift Monitor ($149/mo)</List.Item>
                   </List>
                   <Text as="p" variant="bodySm" tone="subdued">
                     App Store launch (Slice 9 — GDPR webhooks + listing assets)

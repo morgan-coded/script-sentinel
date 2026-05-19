@@ -54,14 +54,14 @@ suites.
   developers can install on dev stores.
 - Non-Plus gate copy:
   > "Script Sentinel is for Shopify Plus merchants. Shopify Scripts only run on Plus stores."
-- Shopify Managed Billing config for the four catalog SKUs, centralised in
+- Shopify Managed Billing config for the catalog SKUs, centralised in
   `app/lib/billing/products.ts`:
   | Plan key | Price | Type |
   |---|---|---|
-  | `MIGRATION_RISK_AUDIT` | `$199` | one-time |
-  | `MULTI_SCRIPT_AUDIT` | `$499` | one-time |
-  | `REGRESSION_SUITE_DISCOUNT` | `$149/mo` | recurring |
-  | `REGRESSION_SUITE_ALL` | `$299/mo` | recurring |
+  | `MIGRATION_RISK_AUDIT` | `$99` | one-time launch audit |
+  | `MULTI_SCRIPT_AUDIT` | `$299` | one-time launch audit |
+  | `REGRESSION_SUITE_DISCOUNT` | `$149/mo` | Drift Monitor |
+  | `REGRESSION_SUITE_ALL` | `$299/mo` | legacy recurring |
 - Uninstall webhook (`app/uninstalled`) verifies HMAC via `authenticate.webhook`,
   deletes the OAuth `Session`, marks the `Shop` row uninstalled, and cancels active
   cached `Charge` rows.
@@ -198,13 +198,13 @@ the app for App Store approval.
 - The persistence test asserts no PII slips through, on every persisted row,
   every run.
 
-## Slice 4 status — Migration Risk Audit (the $199 / $499 cash gate)
+## Slice 4 status — Migration Risk Audit (the $99 / $299 launch cash gate)
 
 **What works in this slice**
 
 - `/app/audit` route with three states driven off the merchant's
   Managed-Billing purchase status: **non-Plus gate** → **paywall** (two SKUs:
-  `MIGRATION_RISK_AUDIT` $199 single-family, `MULTI_SCRIPT_AUDIT` $499
+  `MIGRATION_RISK_AUDIT` $99 single-family, `MULTI_SCRIPT_AUDIT` $299
   all-families) → **ready** (Generate / Download). Plus-only gate enforced
   on every loader and action.
 - Charge wrapper in `app/lib/billing/charge.server.ts` — narrow surface
@@ -350,10 +350,10 @@ locally-stored Slice 3 + Slice 5 data.
 > **Framing note.** Two slices were both labelled "Slice 7" during the
 > build. The first is **pre-launch productization polish** of Slices 1–6
 > (this section). The second is the roadmap's actual Slice 7 — the
-> Continuous Regression Suite ($149/mo recurring product) — which has now
+> Drift Monitor ($149/mo recurring product) — which has now
 > also shipped on the `slice-7-regression-suite` branch (subscription
 > gating, cron handler, drift-alert email rendering, regression
-> dashboard). See the "Slice 7 — Continuous Regression Suite" section
+> dashboard). See the "Slice 7 — Drift Monitor" section
 > below for what landed and the deliberate scope reductions.
 
 **What works in this slice**
@@ -396,24 +396,24 @@ locally-stored Slice 3 + Slice 5 data.
 
 **What this slice deliberately does NOT include**
 
-- **Continuous regression cron** ($149/mo recurring product) — covered
-  in the separate Slice 7 — Continuous Regression Suite section below;
+- **Drift Monitor cron** ($149/mo recurring product) — covered
+  in the separate Slice 7 — Drift Monitor section below;
   not part of this polish slice.
 - **App Store submission readiness** — covered in the Slice 9 section
   below (GDPR webhooks shipped, privacy policy in place, listing copy
   submitted, and launch proof captured).
 - **No new dependencies, no new scopes, no breaking changes.**
 
-## Slice 7 status — Continuous Regression Suite ($149/mo)
+## Slice 7 status — Drift Monitor ($149/mo)
 
 The roadmap's actual Slice 7 — the recurring product. Lives on the
 `slice-7-regression-suite` branch.
 
 **What works in this slice**
 
-- **Subscription billing** via Shopify Managed Billing for the existing
-  `REGRESSION_SUITE_DISCOUNT` ($149/mo) and `REGRESSION_SUITE_ALL`
-  ($299/mo) catalog entries. New `app/lib/billing/subscription.ts`
+- **Subscription billing** via Shopify Managed Billing for the public
+  `REGRESSION_SUITE_DISCOUNT` Drift Monitor ($149/mo) and retained legacy
+  `REGRESSION_SUITE_ALL` ($299/mo) catalog entries. New `app/lib/billing/subscription.ts`
   wraps `billing.request` / `billing.check` for the recurring SKUs and
   exposes a `gateRegressionHistory` helper for free-tier history gating
   on the dashboard.
@@ -580,7 +580,7 @@ credentials and a development store:
 - **End-to-end OAuth install verification** (Plus and non-Plus). Needs a Partners
   app + at least one Plus dev store, plus a non-Plus dev store (Basic / Starter)
   to confirm the gate.
-- **Live billing flow** ($199 one-time charge, $149/mo/$299/mo subscriptions).
+- **Live billing flow** ($99/$299 one-time audit charges, $149/mo Drift Monitor, and retained legacy $299/mo subscription).
   Managed Billing requires a real Shopify charge confirmation in a dev store; the
   test harness verifies the wrapper and static config.
 - **Webhook delivery** — uninstall and GDPR handlers are unit-tested, but

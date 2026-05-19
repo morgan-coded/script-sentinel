@@ -22,10 +22,10 @@ describe("BILLING_PRODUCTS catalog", () => {
   });
 
   it("matches the README pricing exactly", () => {
-    expect(BILLING_PRODUCTS.MIGRATION_RISK_AUDIT.amount).toBe(199);
+    expect(BILLING_PRODUCTS.MIGRATION_RISK_AUDIT.amount).toBe(99);
     expect(BILLING_PRODUCTS.MIGRATION_RISK_AUDIT.kind).toBe("one_time");
 
-    expect(BILLING_PRODUCTS.MULTI_SCRIPT_AUDIT.amount).toBe(499);
+    expect(BILLING_PRODUCTS.MULTI_SCRIPT_AUDIT.amount).toBe(299);
     expect(BILLING_PRODUCTS.MULTI_SCRIPT_AUDIT.kind).toBe("one_time");
 
     expect(BILLING_PRODUCTS.REGRESSION_SUITE_DISCOUNT.amount).toBe(149);
@@ -72,11 +72,11 @@ describe("buildBillingConfig", () => {
 
   it("maps one-time products to a flat BillingInterval.OneTime entry", () => {
     expect(config.MIGRATION_RISK_AUDIT.interval).toBe(BillingInterval.OneTime);
-    expect(config.MIGRATION_RISK_AUDIT.amount).toBe(199);
+    expect(config.MIGRATION_RISK_AUDIT.amount).toBe(99);
     expect(config.MIGRATION_RISK_AUDIT.currencyCode).toBe("USD");
 
     expect(config.MULTI_SCRIPT_AUDIT.interval).toBe(BillingInterval.OneTime);
-    expect(config.MULTI_SCRIPT_AUDIT.amount).toBe(499);
+    expect(config.MULTI_SCRIPT_AUDIT.amount).toBe(299);
   });
 
   it("maps recurring products to a subscription plan with a single Every30Days line item", () => {
@@ -117,7 +117,7 @@ describe("buildBillingConfig", () => {
 
 describe("formatPrice", () => {
   it("formats one-time charges as a flat $X", () => {
-    expect(formatPrice(BILLING_PRODUCTS.MIGRATION_RISK_AUDIT)).toBe("$199");
+    expect(formatPrice(BILLING_PRODUCTS.MIGRATION_RISK_AUDIT)).toBe("$99");
   });
 
   it("formats recurring charges as $X/mo", () => {

@@ -1,9 +1,9 @@
 /**
- * Slice 7 — Subscription billing wrapper for the Continuous Regression Suite
+ * Slice 7 — Subscription billing wrapper for Drift Monitor
  * recurring SKUs. Mirrors `charge.server.ts` (one-time audit charges) but
  * targets the recurring catalog entries:
- *   - REGRESSION_SUITE_DISCOUNT — $149/mo, 14-day trial
- *   - REGRESSION_SUITE_ALL      — $299/mo, 14-day trial
+ *   - REGRESSION_SUITE_DISCOUNT — Drift Monitor, $149/mo, 14-day trial
+ *   - REGRESSION_SUITE_ALL      — legacy all-rules suite, $299/mo, 14-day trial
  *
  * The Slice 1 catalog already declares both tiers; this module is the only
  * place the regression code talks to `billing.request` / `billing.check` for
@@ -19,6 +19,10 @@ export type SubscriptionPlanKey =
 export const SUBSCRIPTION_PLAN_KEYS: ReadonlyArray<SubscriptionPlanKey> = Object.freeze([
   "REGRESSION_SUITE_DISCOUNT",
   "REGRESSION_SUITE_ALL",
+] as const);
+
+export const PUBLIC_SUBSCRIPTION_PLAN_KEYS: ReadonlyArray<SubscriptionPlanKey> = Object.freeze([
+  "REGRESSION_SUITE_DISCOUNT",
 ] as const);
 
 export function isSubscriptionPlanKey(

@@ -18,9 +18,9 @@ const shopify = shopifyApp({
   authPathPrefix: "/auth",
   sessionStorage: new PrismaSessionStorage(prisma),
   distribution: AppDistribution.AppStore,
-  // Shopify Managed Billing — four SKUs centralised in app/lib/billing/products.ts:
-  //   $199 one-time Migration Risk Audit, $499 one-time Multi-Script Audit,
-  //   $149/mo Regression Suite (Discount), $299/mo Regression Suite (All).
+  // Shopify Managed Billing — SKUs centralised in app/lib/billing/products.ts:
+  //   $99 one-time Migration Risk Audit, $299 one-time Multi-Script Audit,
+  //   $149/mo Drift Monitor, plus the retained legacy all-rules subscription.
   billing: buildBillingConfig(),
   future: {
     unstable_newEmbeddedAuthStrategy: true,

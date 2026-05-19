@@ -21,7 +21,7 @@ import { fetchActiveSubscription } from "../lib/billing/subscription";
  * No write scopes are touched. The cron makes one read-only Admin API
  * call per shop — the per-shop subscription check via
  * `unauthenticated.admin(shop)` + `currentAppInstallation.activeSubscriptions`
- * — and skips shops without an active Regression Suite subscription.
+ * — and skips shops without an active Drift Monitor subscription.
  * Capture refresh (re-pulling orders into FunctionOutput rows) stays a
  * merchant-driven action — see the README's Slice 7 honest-limitations note.
  */

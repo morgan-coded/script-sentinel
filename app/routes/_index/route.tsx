@@ -62,7 +62,8 @@ export default function App() {
           <li>
             <strong>Launch-ready compliance</strong>. Privacy policy and
             mandatory Shopify compliance webhooks are built in.{" "}
-            <a href="/legal/privacy.html">Privacy policy</a>.
+            <a href="/legal/privacy.html">Privacy policy</a>.{" "}
+            <a href="/docs.html">Documentation</a>.
           </li>
         </ul>
       </div>

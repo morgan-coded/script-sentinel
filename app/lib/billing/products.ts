@@ -1,7 +1,7 @@
 /**
  * Script Sentinel billing catalog.
  *
- * Single source of truth for the four Shopify Managed Billing SKUs. Used by:
+ * Single source of truth for the Shopify Managed Billing SKUs. Used by:
  *   - shopify.server.ts to produce the BillingConfig passed to shopifyApp({})
  *   - dashboard / paywall routes to render copy + CTAs
  *   - Slice 4 audit paywall to start a one-time charge
@@ -47,41 +47,41 @@ export const BILLING_PRODUCTS: Readonly<Record<BillingPlanKey, BillingProduct>> 
     key: "MIGRATION_RISK_AUDIT",
     displayName: "Migration Risk Audit",
     kind: "one_time",
-    amount: 199,
+    amount: 99,
     currencyCode: CURRENCY,
     trialDays: 0,
     description:
-      "One-time scan of a single Script family (discount, shipping, payment, or market pricing) with a Migration Risk PDF.",
+      "Launch-price audit of a single Script family (discount, shipping, payment, or market pricing) with a Migration Risk PDF.",
   },
   MULTI_SCRIPT_AUDIT: {
     key: "MULTI_SCRIPT_AUDIT",
     displayName: "Multi-Script Audit",
     kind: "one_time",
-    amount: 499,
+    amount: 299,
     currencyCode: CURRENCY,
     trialDays: 0,
     description:
-      "One-time scan covering every active Script family on the store. Single consolidated Migration Risk PDF.",
+      "Launch-price audit covering every active Script family on the store. Single consolidated Migration Risk PDF.",
   },
   REGRESSION_SUITE_DISCOUNT: {
     key: "REGRESSION_SUITE_DISCOUNT",
-    displayName: "Regression Suite (Discount)",
+    displayName: "Drift Monitor",
     kind: "recurring",
     amount: 149,
     currencyCode: CURRENCY,
     trialDays: 14,
     description:
-      "Continuous parity testing for discount Functions. Nightly drift alerts against the cart-fixture baseline.",
+      "Ongoing parity checks after an audit. Nightly drift alerts compare captured Function outputs against the fixture baseline.",
   },
   REGRESSION_SUITE_ALL: {
     key: "REGRESSION_SUITE_ALL",
-    displayName: "Regression Suite (All)",
+    displayName: "Legacy All Rules Suite",
     kind: "recurring",
     amount: 299,
     currencyCode: CURRENCY,
     trialDays: 14,
     description:
-      "All customization types: discount, shipping, payment, B2B, and market pricing. BFCM/promotion launch QA included.",
+      "Legacy recurring plan retained for existing customers who need all customization types.",
   },
 });
 
@@ -116,7 +116,7 @@ export type RecurringBillingEntry = {
   trialDays?: number;
   /**
    * Slice 8 — `STANDARD` enables prorated upgrades. When a $149/mo
-   * subscriber selects the $299/mo tier, Shopify Managed Billing replaces
+   * subscriber selects the legacy $299/mo tier, Shopify Managed Billing replaces
    * the existing subscription and credits the unused portion of the old
    * one against the new charge. Without this field, the upgrade either
    * fails outright or double-charges depending on the merchant's plan
