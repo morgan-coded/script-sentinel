@@ -12,9 +12,9 @@
  *   2. Initiate a new one-time charge if not.
  *
  * `billing.request` throws a Response that REDIRECTS the merchant to
- * Shopify's confirmation URL. After approval Shopify returns to the
- * `returnUrl` we pass in, where the route detects the active purchase via
- * `billing.check` and proceeds to PDF generation.
+ * Shopify's confirmation URL. After approval Shopify returns to the embedded
+ * app context chosen by the billing helper, where the route detects the active
+ * purchase via `billing.check` and proceeds to PDF generation.
  *
  * No write scopes are touched; Managed Billing handles charge creation in
  * Shopify's own infrastructure.
@@ -113,7 +113,7 @@ export async function startAuditCharge(
   billing: BillingApi,
   options: {
     plan: AuditPlanKey;
-    returnUrl: string;
+    returnUrl?: string;
     isTest?: boolean;
   },
 ): Promise<never> {
@@ -123,9 +123,10 @@ export async function startAuditCharge(
       `startAuditCharge called with non-audit plan key: ${options.plan}`,
     );
   }
-  return billing.request({
+  const requestOptions: Parameters<BillingApi["request"]>[0] = {
     plan: options.plan,
     isTest: options.isTest ?? false,
-    returnUrl: options.returnUrl,
-  });
+  };
+  if (options.returnUrl) requestOptions.returnUrl = options.returnUrl;
+  return billing.request(requestOptions);
 }

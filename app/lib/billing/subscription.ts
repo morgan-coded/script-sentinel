@@ -94,7 +94,7 @@ export async function startSubscription(
   billing: SubscriptionBillingApi,
   options: {
     plan: SubscriptionPlanKey;
-    returnUrl: string;
+    returnUrl?: string;
     isTest?: boolean;
   },
 ): Promise<never> {
@@ -104,11 +104,12 @@ export async function startSubscription(
       `startSubscription called with non-recurring plan key: ${options.plan}`,
     );
   }
-  return billing.request({
+  const requestOptions: Parameters<SubscriptionBillingApi["request"]>[0] = {
     plan: options.plan,
     isTest: options.isTest ?? false,
-    returnUrl: options.returnUrl,
-  });
+  };
+  if (options.returnUrl) requestOptions.returnUrl = options.returnUrl;
+  return billing.request(requestOptions);
 }
 
 /**

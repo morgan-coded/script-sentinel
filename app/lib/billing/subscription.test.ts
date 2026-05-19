@@ -135,10 +135,23 @@ describe("startSubscription", () => {
       startSubscription(billing, {
         // @ts-expect-error - intentional misuse for the runtime guard
         plan: "MIGRATION_RISK_AUDIT",
-        returnUrl: "https://app.example/app/regression",
       }),
     ).rejects.toThrow(/non-recurring plan/);
     expect(billing.request).not.toHaveBeenCalled();
+  });
+
+  it("omits returnUrl when not supplied so embedded billing can choose the return target", async () => {
+    const billing = makeBilling();
+    await expect(
+      startSubscription(billing, {
+        plan: "REGRESSION_SUITE_DISCOUNT",
+        isTest: true,
+      }),
+    ).rejects.toBeInstanceOf(Response);
+    expect(billing.request).toHaveBeenCalledWith({
+      plan: "REGRESSION_SUITE_DISCOUNT",
+      isTest: true,
+    });
   });
 });
 

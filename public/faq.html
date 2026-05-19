@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Script Sentinel FAQ for Shopify Plus Scripts to Functions migration-risk audits."
+    />
+    <title>Script Sentinel FAQ</title>
+    <style>
+      body { color: #172033; font-family: Arial, sans-serif; line-height: 1.55; margin: 0; }
+      main { margin: 0 auto; max-width: 880px; padding: 48px 20px; }
+      h1, h2 { line-height: 1.2; }
+      h2 { margin-top: 2rem; }
+      a { color: #064f9e; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Script Sentinel FAQ</h1>
+
+      <h2>What does Script Sentinel do?</h2>
+      <p>Script Sentinel helps Shopify Plus teams audit migration risk when moving from legacy Shopify Scripts to Shopify Functions. It inventories pasted Script source, builds privacy-scrubbed cart fixtures from recent order patterns, compares expected Script-era behavior with observed Function-era output when available, and exports Migration Risk Audit evidence.</p>
+
+      <h2>Does it automatically migrate Scripts to Functions?</h2>
+      <p>No. Script Sentinel is a diagnostic and evidence tool. It does not convert Ruby Scripts into Shopify Functions, deploy Functions, guarantee migration readiness, or replace developer review.</p>
+
+      <h2>What are fixtures?</h2>
+      <p>Fixtures are representative cart shapes generated from recent order patterns. They preserve checkout-relevant signals such as line totals, discount shape, shipping country or postal prefix, shipping rate, and payment gateway names while avoiding direct customer identifiers.</p>
+
+      <h2>What does a parity gap mean?</h2>
+      <p>A parity gap means the observed Function-era output did not match the Script-era expectation for a comparable fixture. It is a review signal for the merchant or developer team, not proof that checkout is broken or safe.</p>
+
+      <h2>What is Drift Monitor?</h2>
+      <p>Drift Monitor is the recurring regression surface. After baseline fixtures and observed Function outputs exist, it compares later captured behavior against the fixture baseline and flags changed discount, shipping, payment, total, market, or B2B behavior for review.</p>
+
+      <h2>What data is scrubbed?</h2>
+      <p>Fixture storage is designed to avoid customer-identifying data. Names, emails, phone numbers, full shipping or billing addresses, customer IDs, account references, and free-text customer notes are not retained in fixtures. The retained address signal is limited to country code and a short postal prefix for checkout-rule testing.</p>
+
+      <h2>Does Script Sentinel change checkout, discounts, shipping, or payments?</h2>
+      <p>No. The app uses read-only Shopify access for the audit workflow. It does not create or edit discounts, modify shipping rates, change payment methods, deploy Scripts or Functions, or change checkout behavior.</p>
+
+      <h2>What is included in the PDF audit?</h2>
+      <p>The Migration Risk Audit PDF includes the audit summary, script classifications, risk scoring, fixture coverage, notable migration-risk findings, observed parity gaps when available, and open questions for the merchant or developer team.</p>
+
+      <h2>How does billing work?</h2>
+      <p>Public billing uses Shopify Managed Billing. Launch pricing lists a $99 Single Script Audit, a $299 Multi-Script Audit, and a $149/month Drift Monitor plan. Charge confirmation and subscription management happen through Shopify billing.</p>
+
+      <h2>What happens when the app is uninstalled?</h2>
+      <p>Uninstall Script Sentinel from Shopify Admin. The app stops new reads and processes Shopify's uninstall webhook. Standard Shopify GDPR webhooks handle follow-up shop and customer data lifecycle events.</p>
+
+      <h2>How do I get support?</h2>
+      <p>Email <a href="mailto:support@morganlabs.org">support@morganlabs.org</a>.</p>
+    </main>
+  </body>
+</html>

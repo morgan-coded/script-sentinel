@@ -156,16 +156,18 @@ describe("startAuditCharge", () => {
     expect(billing.request).not.toHaveBeenCalled();
   });
 
-  it("defaults isTest to false when not supplied (production live charge)", async () => {
+  it("defaults isTest to false and omits returnUrl when not supplied", async () => {
     const billing = makeBilling();
     await expect(
       startAuditCharge(billing, {
         plan: "MULTI_SCRIPT_AUDIT",
-        returnUrl: "https://app.example/app/audit",
       }),
     ).rejects.toBeInstanceOf(Response);
     expect(billing.request).toHaveBeenCalledWith(
       expect.objectContaining({ isTest: false }),
+    );
+    expect(billing.request).toHaveBeenCalledWith(
+      expect.not.objectContaining({ returnUrl: expect.anything() }),
     );
   });
 });

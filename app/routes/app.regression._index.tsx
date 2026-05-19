@@ -37,8 +37,6 @@ import { listDriftResultsForRun } from "../lib/audit/store.server";
 import { runRegressionForShop } from "../lib/regression/runner.server";
 import { SentinelEmptyState } from "../components/SentinelEmptyState";
 
-const APP_REGRESSION_PATH = "/app/regression";
-
 type RunRow = {
   id: string;
   trigger: "cron" | "manual";
@@ -169,10 +167,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (!isSubscriptionPlanKey(planKeyRaw)) {
       return { error: "Pick a valid subscription plan." };
     }
-    const url = new URL(request.url);
     return startSubscription(billing as unknown as SubscriptionBillingApi, {
       plan: planKeyRaw as SubscriptionPlanKey,
-      returnUrl: `${url.origin}${APP_REGRESSION_PATH}`,
       isTest: plan.isDevelopment,
     });
   }

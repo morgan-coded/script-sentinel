@@ -58,8 +58,6 @@ import { NON_PLUS_GATE_MESSAGE } from "../lib/shopify/plan-copy";
  *   5. Download action renders the persisted snapshot to PDF on demand.
  */
 
-const APP_AUDIT_PATH = "/app/audit";
-
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session, billing } = await authenticate.admin(request);
   const plan = await fetchShopPlan(admin);
@@ -160,14 +158,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (!isAuditPlanKey(planKeyRaw)) {
       return { error: "Pick a valid audit plan." };
     }
-    const url = new URL(request.url);
-    const returnUrl = `${url.origin}${APP_AUDIT_PATH}`;
     // billing.request throws a Response (303 redirect to Shopify confirmation
-    // URL) on success. Our type cast keeps the shopify-app-remix ergonomics
-    // local while routing through our charge wrapper.
+    // URL) on success. Let Shopify's billing helper use its embedded-app
+    // return target; a bare app-origin return URL drops merchants at /auth/login
+    // without a shop after approval.
     return startAuditCharge(billing as unknown as BillingApi, {
       plan: planKeyRaw,
-      returnUrl,
       isTest: plan.isDevelopment,
     });
   }
