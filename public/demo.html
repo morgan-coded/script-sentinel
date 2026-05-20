@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Script Sentinel demo showing Shopify Scripts-to-Functions migration audit fixtures, parity gaps, and PDF evidence."
+    />
+    <title>Script Sentinel Demo</title>
+    <style>
+      body { color: #172033; font-family: Arial, sans-serif; line-height: 1.55; margin: 0; }
+      main { margin: 0 auto; max-width: 960px; padding: 48px 20px; }
+      h1, h2 { line-height: 1.2; }
+      h2 { margin-top: 2rem; }
+      a { color: #064f9e; }
+      .step { border: 1px solid #d8e0ea; border-radius: 8px; margin: 18px 0; padding: 18px; }
+      .label { color: #526173; font-size: 0.9rem; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; }
+      code { background: #eef2f7; border-radius: 4px; padding: 2px 4px; }
+      pre { background: #172033; border-radius: 8px; color: #f8fafc; overflow: auto; padding: 16px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p><a href="/docs.html">Documentation</a> / Demo</p>
+      <h1>Compare legacy Script behavior with Function output before launch.</h1>
+      <p>Script Sentinel is audit and evidence tooling for Shopify Plus teams. It does not automatically migrate Scripts, change checkout behavior, replace developer review, or guarantee parity.</p>
+
+      <section class="step">
+        <div class="label">1. Legacy Script intake</div>
+        <h2>Inventory the logic being replaced</h2>
+        <p>Paste discount, shipping, or payment Script source so the app can classify the migration-risk surface.</p>
+        <pre><code>{
+  "scriptName": "vip-discount.rb",
+  "customizationType": "discount",
+  "signals": ["customer-tag", "line-item-sku", "cart-total"]
+}</code></pre>
+      </section>
+
+      <section class="step">
+        <div class="label">2. Scrubbed fixture</div>
+        <h2>Keep checkout shape, avoid direct identifiers</h2>
+        <p>Fixtures preserve the data shape needed for comparison while avoiding names, emails, phone numbers, full addresses, customer IDs, and free-text customer notes.</p>
+        <pre><code>{
+  "fixtureId": "fixture-vip-001",
+  "cartTotal": "148.00",
+  "customerTags": ["VIP"],
+  "countryCode": "US",
+  "postalPrefix": "100",
+  "lines": [
+    { "sku": "JACKET-XL", "quantity": 1, "price": "148.00" }
+  ]
+}</code></pre>
+      </section>
+
+      <section class="step">
+        <div class="label">3. Expected vs observed</div>
+        <h2>Compare behavior</h2>
+        <p>The audit records expected Script-era output next to observed Function-era output when the Function result is available.</p>
+        <pre><code>{
+  "expectedScriptOutput": {
+    "discountTitle": "VIP 15%",
+    "discountAmount": "22.20"
+  },
+  "observedFunctionOutput": {
+    "discountTitle": "VIP 10%",
+    "discountAmount": "14.80"
+  }
+}</code></pre>
+      </section>
+
+      <section class="step">
+        <div class="label">4. Parity gap</div>
+        <h2>Review migration risk</h2>
+        <p>A parity gap is a review signal for the merchant, agency, or developer team. It is not proof that checkout is broken or safe.</p>
+        <pre><code>{
+  "severity": "review",
+  "gap": "discount_amount_changed",
+  "expected": "22.20",
+  "observed": "14.80",
+  "nextStep": "Confirm VIP discount rule before launch"
+}</code></pre>
+      </section>
+
+      <section class="step">
+        <div class="label">5. PDF evidence export</div>
+        <h2>Share audit findings</h2>
+        <ul>
+          <li>Script inventory and customization types.</li>
+          <li>Fixture coverage and scrubbed data policy.</li>
+          <li>Expected Script behavior and observed Function output.</li>
+          <li>Open parity gaps and stakeholder review notes.</li>
+        </ul>
+      </section>
+
+      <h2>Support</h2>
+      <p>Email <a href="mailto:support@morganlabs.org">support@morganlabs.org</a> for audit setup or agency walkthroughs.</p>
+    </main>
+  </body>
+</html>
